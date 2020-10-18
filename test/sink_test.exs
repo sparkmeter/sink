@@ -1,4 +1,4 @@
 defmodule SinkTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   doctest Sink
 end
