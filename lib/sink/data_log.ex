@@ -1,4 +1,4 @@
-defmodule Sink.Log do
+defmodule Sink.DataLog do
   @contents_table :_sink_log_data
   @offsets_table :_sink_log_offsets
 
