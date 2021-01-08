@@ -1,12 +1,13 @@
 defmodule SlimTest do
   use ExUnit.Case, async: true
+  alias Slim.Events
 
   # @user_uuid UUID.dump!("8cb15ae7-3b9e-4135-ae3f-6d3ee79ea197")
   @user_uuid "8cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
 
   describe "encode/decode events" do
-    test "UserCloud" do
-      event = %Slim.Cloud.UserCloud{
+    test "UserEvent" do
+      event = %Events.UserEvent{
         id: @user_uuid,
         email: "slim@sparkmeter.io",
         offset: 1,

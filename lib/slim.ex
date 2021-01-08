@@ -1,13 +1,11 @@
 defmodule Slim do
-  alias Slim.{Cloud, Ground}
+  alias Slim.Events
 
   @event_type_map %{
-    0 => Cloud.UserCloud,
-    1 => Ground.UserGround
+    0 => Events.UserEvent
   }
   @event_type_rev_map %{
-    Cloud.UserCloud => 0,
-    Ground.UserGround => 1
+    Events.UserEvent => 0
   }
 
   def get_event_type(event_type_id), do: Map.fetch!(@event_type_map, event_type_id)

@@ -1,9 +1,9 @@
-defmodule Slim.Cloud.UserCloud do
+defmodule Slim.Events.UserEvent do
   defstruct [:id, :email, :offset, :username, :shared_secret, :updated_by_id]
 
-  def key(user_cloud), do: user_cloud.id
+  def key(user_event), do: user_event.id
 
-  def offset(user_cloud), do: user_cloud.offset
+  def offset(user_event), do: user_event.offset
 
   def set_key(event, encoded_key), do: %__MODULE__{event | id: encoded_key}
 

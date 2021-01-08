@@ -1,4 +1,4 @@
-defmodule Sink.EventLog.EctoEventLog do
+defmodule Sink.EventLog.EctoGenericEventLog do
   @moduledoc """
   Documentation for `Sink`.
   """
@@ -15,8 +15,10 @@ defmodule Sink.EventLog.EctoEventLog do
       nil ->
         nil
 
-      %{event_data: event_data} ->
-        event_data
+      #      %{event_data: event_data} ->
+      #        event_data
+      record ->
+        record.event_data
     end
   end
 
