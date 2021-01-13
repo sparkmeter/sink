@@ -59,6 +59,15 @@ defmodule Sink.Connection.Client do
     GenServer.call(Process.whereis(__MODULE__), :connected?)
   end
 
+  def ack(message_id) do
+    if connected?() do
+      pid = Process.whereis(__MODULE__)
+      GenServer.call(pid, {:ack, message_id})
+    else
+      {:error, :no_connection}
+    end
+  end
+
   def publish(binary, ack_key: ack_key) do
     if connected?() do
       pid = Process.whereis(__MODULE__)
@@ -72,6 +81,13 @@ defmodule Sink.Connection.Client do
 
   def handle_call(:connected?, _from, state) do
     {:reply, State.connected?(state), state}
+  end
+
+  def handle_call({:ack, message_id}, _from, state) do
+    frame = Sink.Connection.Protocol.encode_frame(:ack, message_id, <<>>)
+    :ok = :ssl.send(state.socket, frame)
+
+    {:reply, :ok, state}
   end
 
   def handle_call({:publish, binary, ack_key}, {from, _}, state) do
@@ -92,8 +108,9 @@ defmodule Sink.Connection.Client do
           active: true
         )
 
-    case :ssl.connect('localhost', state.port, opts, 5_000) do
+    case :ssl.connect('localhost', state.port, opts, 60_000) do
       {:ok, socket} ->
+        Logger.info("Connected to Sink Server")
         # todo: send message to handler that we're connected
 
         {:noreply,
@@ -105,7 +122,16 @@ defmodule Sink.Connection.Client do
              next_message_id: Connection.next_message_id(nil)
          }}
 
-      _result ->
+      {:error, :econnrefused} ->
+        # can't find Sink Server, retry
+        Process.send_after(self(), :open_connection, 5_000)
+        {:noreply, state}
+
+      {:error, :timeout} ->
+        Process.send_after(self(), :open_connection, 5_000)
+        {:noreply, state}
+
+      {:error, :closed} ->
         Process.send_after(self(), :open_connection, 5_000)
         {:noreply, state}
     end
@@ -119,7 +145,7 @@ defmodule Sink.Connection.Client do
       ) do
     new_state =
       message
-      |> Connection.decode_message()
+      |> Sink.Connection.Protocol.decode_frame()
       |> case do
         {:ack, message_id} ->
           {ack_handler, ack_key} = State.find_inflight(state, message_id)
@@ -128,13 +154,13 @@ defmodule Sink.Connection.Client do
 
           State.remove_inflight(state, message_id)
 
-        {:publish, message_id, event_frame} ->
+        {:publish, message_id, payload} ->
+          {event_type_id, key, offset, event_data} =
+            Connection.Protocol.decode_payload(:publish, payload)
+
           # send the event to handler
           pid = Process.whereis(handler)
-          send(pid, {:publish_event, event_frame})
-          # ack the message
-          ack = Connection.encode_ack(message_id)
-          :ok = :ssl.send(socket, ack)
+          send(pid, {:publish, {event_type_id, key}, offset, event_data, message_id})
 
           state
       end
