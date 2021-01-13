@@ -47,13 +47,13 @@ defmodule Sink.ConnectionTest do
     start_supervised!({Sink.Connection.Client, port: 9999, ssl_opts: @client_ssl_opts})
 
     assert false == Sink.Connection.Client.connected?()
-    assert false == Sink.Connection.connected?(@client_id)
+    assert false == Sink.Connection.ServerHandler.connected?(@client_id)
 
     # give it time to connect
     :timer.sleep(100)
 
     assert true == Sink.Connection.Client.connected?()
-    assert true == Sink.Connection.connected?(@client_id)
+    assert true == Sink.Connection.ServerHandler.connected?(@client_id)
   end
 
   @tag :skip
@@ -68,13 +68,13 @@ defmodule Sink.ConnectionTest do
     :timer.sleep(100)
 
     assert true == Sink.Connection.Client.connected?()
-    assert true == Sink.Connection.connected?(@client_id)
+    assert true == Sink.Connection.ServerHandler.connected?(@client_id)
 
     # send the message
     event = %TestEvent{key: @key, offset: 1, message: "hi!"}
     binary = :erlang.term_to_binary(event)
     ack_key = {@client_id, "test_event", event.key, event.offset}
-    Sink.Connection.publish(@client_id, binary, ack_key: ack_key)
+    Sink.Connection.ServerHandler.publish(@client_id, binary, ack_key)
 
     # wait for ack
     receive do
@@ -98,7 +98,7 @@ defmodule Sink.ConnectionTest do
     :timer.sleep(100)
 
     assert true == Sink.Connection.Client.connected?()
-    assert true == Sink.Connection.connected?(@client_id)
+    assert true == Sink.Connection.ServerHandler.connected?(@client_id)
 
     event = %TestEvent{key: @key, offset: 1, message: "hi!"}
     binary = :erlang.term_to_binary(event)

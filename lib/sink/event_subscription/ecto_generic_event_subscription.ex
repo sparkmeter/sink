@@ -58,6 +58,14 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
     end
   end
 
+  def update_producer_offset(subscription_table, {event_type_id, key}, offset) do
+    from(sub in subscription_table,
+      where: sub.event_type_id == ^event_type_id,
+      where: sub.key == ^key
+    )
+    |> @repo.update_all(set: [producer_offset: offset])
+  end
+
   def ack(subscription_table, {event_type_id, key}, offset) do
     @repo.get_by(subscription_table,
       event_type_id: event_type_id,

@@ -16,11 +16,9 @@ defmodule Sink.Connection.Protocol do
 
     message_type =
       case message_type_id do
-        3 -> :ack
-        4 -> :publish
+        3 -> {:ack, message_id}
+        4 -> {:publish, message_id, payload}
       end
-
-    {message_type, message_id, payload}
   end
 
   def encode_payload(:publish, {event_type_id, key, offset, event_data}) do

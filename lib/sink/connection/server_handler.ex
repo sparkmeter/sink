@@ -54,6 +54,15 @@ defmodule Sink.Connection.ServerHandler do
     GenServer.call(pid, {:publish, binary, ack_key})
   end
 
+  def whereis(client_id) do
+    process_name = String.to_atom("sink-#{client_id}")
+    Process.whereis(process_name)
+  end
+
+  def connected?(client_id) do
+    whereis(client_id) != nil
+  end
+
   @doc """
   Initiates the handler, acknowledging the connection was accepted.
   Finally it makes the existing process into a `:gen_server` process and
@@ -69,7 +78,6 @@ defmodule Sink.Connection.ServerHandler do
     end)
 
     :ok = :ranch.accept_ack(ref)
-    :ok = transport.setopts(socket, [:binary, active: true, packet: 2])
 
     ssl_opts =
       [:binary] ++
@@ -78,8 +86,9 @@ defmodule Sink.Connection.ServerHandler do
           active: true
         )
 
-    {:ok, new_socket} = :ranch_ssl.handshake(socket, ssl_opts, 5000)
-    {:ok, peer_cert} = :ssl.peercert(new_socket)
+    :ok = transport.setopts(socket, active: true, packet: 2)
+
+    {:ok, peer_cert} = :ssl.peercert(socket)
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
@@ -91,10 +100,11 @@ defmodule Sink.Connection.ServerHandler do
           [],
           %State{
             client_id: client_id,
-            socket: new_socket,
+            socket: socket,
             transport: transport,
             peername: peername,
             handler: handler,
+            ssl_opts: ssl_opts,
             next_message_id: Connection.next_message_id(nil)
           },
           {:local, process_name}
@@ -109,11 +119,12 @@ defmodule Sink.Connection.ServerHandler do
 
   # Server callbacks
 
-  def handle_call({:publish, binary, ack_key}, {from, _}, state) do
+  def handle_call({:publish, payload, ack_key}, {from, _}, state) do
     if State.inflight?(state, ack_key) do
       {:reply, {:error, :inflight}, state}
     else
-      encoded = Connection.encode_publish(state.next_message_id, binary)
+      encoded = Sink.Connection.Protocol.encode_frame(:publish, state.next_message_id, payload)
+
       :ok = :ssl.send(state.socket, encoded)
       {:reply, :ok, State.put_inflight(state, {from, ack_key})}
     end
@@ -123,11 +134,11 @@ defmodule Sink.Connection.ServerHandler do
 
   def handle_info(
         {:ssl, socket, message},
-        %State{client_id: client_id} = state
+        %State{client_id: client_id, handler: handler} = state
       ) do
     new_state =
       message
-      |> Connection.decode_message()
+      |> Connection.Protocol.decode_frame()
       |> case do
         {:ack, message_id} ->
           {ack_handler, ack_key} = State.find_inflight(state, message_id)
@@ -136,13 +147,13 @@ defmodule Sink.Connection.ServerHandler do
 
           State.remove_inflight(state, message_id)
 
-        {:publish, message_id, _event} ->
-          # write to log and send ack
+        {:publish, message_id, payload} ->
+          {event_type_id, key, offset, event_data} =
+            Connection.Protocol.decode_payload(:publish, payload)
 
-          # send event to handler
-
-          ack = Connection.encode_ack(message_id)
-          :ok = :ssl.send(socket, ack)
+          # send the event to handler
+          pid = Process.whereis(handler)
+          send(pid, {:publish, {client_id, event_type_id, key}, offset, event_data, message_id})
 
           state
       end
@@ -179,7 +190,7 @@ defmodule Sink.Connection.ServerHandler do
   # Helpers
 
   defp stringify_peername(socket) do
-    {:ok, {addr, port}} = :inet.peername(socket)
+    {:ok, {addr, port}} = :ssl.peername(socket)
 
     address =
       addr

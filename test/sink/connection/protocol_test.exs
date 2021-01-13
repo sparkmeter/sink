@@ -42,12 +42,11 @@ defmodule Sink.Connection.ProtocolTest do
     test "decodes a ping"
 
     test "decodes a ack" do
-      frame = <<48, 0>> <> <<2, 73>>
-      {message_type, message_id, payload} = Protocol.decode_frame(frame)
+      frame = <<48, 0>>
+      {message_type, message_id} = Protocol.decode_frame(frame)
 
       assert :ack == message_type
       assert 0 == message_id
-      assert <<2, 73>> == payload
     end
 
     test "decodes a publish" do
