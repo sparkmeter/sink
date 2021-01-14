@@ -3,15 +3,18 @@ defmodule Slim do
 
   @event_type_map %{
     0 => Events.UserEvent,
-    1 => Events.TariffEvent
+    1 => Events.TariffEvent,
+    2 => Events.MeterEvent
   }
   @event_type_rev_map %{
     Events.UserEvent => 0,
-    Events.TariffEvent => 1
+    Events.TariffEvent => 1,
+    Events.MeterEvent => 2
   }
   @event_schema %{
     Events.UserEvent => "io.slim.user_event",
-    Events.TariffEvent => "io.slim.tariff_event"
+    Events.TariffEvent => "io.slim.tariff_event",
+    Events.MeterEvent => "io.slim.meter_event"
   }
 
   def get_event_type(event_type_id), do: Map.fetch!(@event_type_map, event_type_id)
@@ -70,7 +73,8 @@ defmodule Slim do
     _ =
       [
         Path.join([schema_dir, "user_event.avsc"]),
-        Path.join([schema_dir, "tariff_event.avsc"])
+        Path.join([schema_dir, "tariff_event.avsc"]),
+        Path.join([schema_dir, "meter_event.avsc"])
       ]
       |> Enum.map(&parse_schema/1)
       |> Enum.map(&register_schema/1)
