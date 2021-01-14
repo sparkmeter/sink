@@ -1,0 +1,32 @@
+{
+  "type": "record",
+  "name": "tariff_event",
+  "namespace": "io.slim",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "rate",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 4,
+        "scale": 2
+      }
+    },
+    {
+      "name": "load_limit",
+      "type": "int"
+    },
+    {
+      "name": "updated_by_id",
+      "type": {
+        "type": "fixed",
+        "name": "updated_by_id",
+        "size": 16
+      }
+    }
+  ]
+}
