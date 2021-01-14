@@ -14,11 +14,10 @@ defmodule Sink.Connection.Protocol do
   def decode_frame(message) do
     <<message_type_id::4, message_id::integer-size(12), payload::binary>> = message
 
-    message_type =
-      case message_type_id do
-        3 -> {:ack, message_id}
-        4 -> {:publish, message_id, payload}
-      end
+    case message_type_id do
+      3 -> {:ack, message_id}
+      4 -> {:publish, message_id, payload}
+    end
   end
 
   def encode_payload(:publish, {event_type_id, key, offset, event_data}) do
