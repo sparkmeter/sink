@@ -1,0 +1,57 @@
+{
+  "type": "record",
+  "name": "customer_meter_config_event",
+  "namespace": "io.slim",
+  "fields": [
+    {
+      "name": "customer_id",
+      "type": {
+        "type": "fixed",
+        "name": "customer_id",
+        "size": 16
+      }
+    },
+    {
+      "name": "meter_id",
+      "type": [
+        "null",
+        {
+          "type": "fixed",
+          "name": "meter_id",
+          "size": 16
+        }
+      ]
+    },
+    {
+      "name": "tariff_id",
+      "type": [
+        "null",
+        {
+          "type": "fixed",
+          "name": "tariff_id",
+          "size": 16
+        }
+      ]
+    },
+    {
+      "name": "operating_mode",
+      "type": {
+        "type": "enum",
+        "name": "to_num",
+        "symbols": [
+          "off",
+          "auto",
+          "on"
+        ]
+      }
+    },
+    {
+      "name": "updated_by_id",
+      "type": {
+        "type": "fixed",
+        "name": "updated_by_id",
+        "size": 16
+      }
+    }
+  ]
+}
