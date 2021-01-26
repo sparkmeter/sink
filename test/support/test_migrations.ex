@@ -55,6 +55,11 @@ defmodule Sink.TestMigrations do
       add(:producer_offset, :integer, null: false)
     end
 
+    create table(:test_ecto_event_type_configs, primary_key: false) do
+      add(:event_type_id, :integer, null: false, primary_key: true)
+      add(:order, :integer, null: false)
+    end
+
     # for end to end server - client tests
 
     # tables on the cloud

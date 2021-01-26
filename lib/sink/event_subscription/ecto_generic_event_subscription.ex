@@ -78,15 +78,18 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
     end
   end
 
-  def queue(subscription_table) do
+  def queue(subscription_table, config_table) do
     from(sub in subscription_table,
       where: sub.consumer_offset < sub.producer_offset,
+      join: c in ^config_table,
+      on: sub.event_type_id == c.event_type_id,
       select: {
         sub.event_type_id,
         sub.key,
         sub.consumer_offset,
         sub.producer_offset
-      }
+      },
+      order_by: [asc: c.order]
     )
     |> @repo.all()
     |> Enum.map(fn {event_type_id, key, consumer_offset, producer_offset} ->
