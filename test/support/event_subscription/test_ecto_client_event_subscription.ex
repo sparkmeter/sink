@@ -37,6 +37,6 @@ defmodule Sink.EventSubscription.TestEctoClientEventSubscription do
   end
 
   def queue(client_id) do
-    EctoClientEventSubscription.queue(__MODULE__, client_id)
+    EctoClientEventSubscription.queue(__MODULE__, Sink.TestEctoEventTypeConfig, client_id)
   end
 end
