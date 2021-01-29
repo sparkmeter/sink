@@ -8,7 +8,7 @@ defmodule SlimTest do
   @meter_id "00015ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
   @portfolio_id "11111ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
   @tariff_id "0cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
-  @user_uuid "8cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
+  @user_id "8cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
 
   describe "encode/decode events" do
     test "CustomerEvent (with optional fields)" do
@@ -18,7 +18,7 @@ defmodule SlimTest do
         portfolio_id: @portfolio_id,
         code: "test",
         offset: 1,
-        updated_by_id: @user_uuid
+        updated_by_id: @user_id
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -34,7 +34,7 @@ defmodule SlimTest do
         portfolio_id: nil,
         code: nil,
         offset: 1,
-        updated_by_id: @user_uuid
+        updated_by_id: @user_id
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -49,7 +49,7 @@ defmodule SlimTest do
         serial_number: "SM60R-01-00001551",
         address: "742 Evergreen Terrace",
         offset: 1,
-        updated_by_id: @user_uuid
+        updated_by_id: @user_id
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -66,7 +66,7 @@ defmodule SlimTest do
         tariff_id: @tariff_id,
         operating_mode: "auto",
         offset: 1,
-        updated_by_id: @user_uuid
+        updated_by_id: @user_id
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -83,7 +83,7 @@ defmodule SlimTest do
         tariff_id: nil,
         operating_mode: "auto",
         offset: 1,
-        updated_by_id: @user_uuid
+        updated_by_id: @user_id
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -155,6 +155,20 @@ defmodule SlimTest do
       assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
     end
 
+    test "SystemConfigEvent" do
+      event = %Events.SystemConfigEvent{
+        nerves_hub_link_enabled: true,
+        offset: 1,
+        updated_at: 1_586_632_500,
+        updated_by_id: @user_id
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert <<>> == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
     test "TariffEvent" do
       event = %Events.TariffEvent{
         id: @tariff_id,
@@ -162,7 +176,7 @@ defmodule SlimTest do
         load_limit: 9_000,
         rate: :erlang.float_to_binary(10.50),
         offset: 1,
-        updated_by_id: @user_uuid
+        updated_by_id: @user_id
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -171,14 +185,28 @@ defmodule SlimTest do
       assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
     end
 
+    test "UpdateFirmwareEvent" do
+      event = %Events.UpdateFirmwareEvent{
+        to: "nerves_hub",
+        offset: 1,
+        updated_at: 1_586_632_500,
+        updated_by_id: @user_id
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert <<>> == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
     test "UserEvent" do
       event = %Events.UserEvent{
-        id: @user_uuid,
+        id: @user_id,
         email: "slim@sparkmeter.io",
         offset: 1,
         username: "slim",
         shared_secret: "12345",
-        updated_by_id: @user_uuid
+        updated_by_id: @user_id
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)

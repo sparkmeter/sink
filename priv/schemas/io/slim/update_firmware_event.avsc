@@ -1,0 +1,30 @@
+{
+  "type": "record",
+  "name": "update_firmware_event",
+  "namespace": "io.slim",
+  "fields": [
+    {
+      "name": "updated_at",
+      "type": "int"
+    },
+    {
+      "name": "updated_by_id",
+      "type": {
+        "type": "fixed",
+        "name": "updated_by_id",
+        "size": 16
+      }
+    },
+    {
+      "name": "to",
+      "type": {
+        "type": "enum",
+        "name": "to_num",
+        "symbols": [
+          "nerves_hub",
+          "revert"
+        ]
+      }
+    }
+  ]
+}
