@@ -22,10 +22,10 @@ defmodule Sink.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:avrora, "~> 0.16.0"},
+      {:avrora, "~> 0.12.0"},
       # {:ecto, "2.2.11"},
       {:ecto, "2.2.11", only: :test},
-      {:erlavro, "~> 2.9.1"},
+      {:erlavro, "~> 2.9.0"},
       {:ranch, "1.7.1"},
       # {:sqlite_ecto2, "2.4.1"}
       {:sqlite_ecto2, "2.4.1", only: :test},
