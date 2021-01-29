@@ -1,4 +1,11 @@
 defmodule Slim do
+  @doc """
+  Slim is the application specific encodings for Nova events.
+
+  Note: event_type_id is encoded as a VarInt. Since control messages are expected to be
+   much less frequent so they start at 256 (two bytes vs 1 for 255 and under) to save
+   room for more frequent messages we will add as the system grows number of messages.
+  """
   alias Slim.Events
 
   @event_type_map %{
@@ -9,7 +16,10 @@ defmodule Slim do
     4 => Events.CustomerEvent,
     5 => Events.MeterReadingEvent,
     6 => Events.MeterConfigEvent,
-    7 => Events.MeterConfigAppliedEvent
+    7 => Events.MeterConfigAppliedEvent,
+    # Control Messages
+    256 => Events.SystemConfigEvent,
+    257 => Events.UpdateFirmwareEvent
   }
   @event_type_rev_map %{
     Events.UserEvent => 0,
@@ -19,7 +29,10 @@ defmodule Slim do
     Events.CustomerEvent => 4,
     Events.MeterReadingEvent => 5,
     Events.MeterConfigEvent => 6,
-    Events.MeterConfigAppliedEvent => 7
+    Events.MeterConfigAppliedEvent => 7,
+    # Control Messages
+    Events.SystemConfigEvent => 256,
+    Events.UpdateFirmwareEvent => 257
   }
   @event_schema %{
     Events.UserEvent => "io.slim.user_event",
@@ -29,7 +42,10 @@ defmodule Slim do
     Events.CustomerEvent => "io.slim.customer_event",
     Events.MeterReadingEvent => "io.slim.meter_reading_event",
     Events.MeterConfigEvent => "io.slim.meter_config_event",
-    Events.MeterConfigAppliedEvent => "io.slim.meter_config_applied_event"
+    Events.MeterConfigAppliedEvent => "io.slim.meter_config_applied_event",
+    # Control Messages
+    Events.SystemConfigEvent => "io.slim.system_config_event",
+    Events.UpdateFirmwareEvent => "io.slim.update_firmware_event"
   }
 
   def get_event_type(event_type_id), do: Map.fetch!(@event_type_map, event_type_id)
@@ -94,7 +110,9 @@ defmodule Slim do
         Path.join([schema_dir, "customer_event.avsc"]),
         Path.join([schema_dir, "meter_reading_event.avsc"]),
         Path.join([schema_dir, "meter_config_event.avsc"]),
-        Path.join([schema_dir, "meter_config_applied_event.avsc"])
+        Path.join([schema_dir, "meter_config_applied_event.avsc"]),
+        Path.join([schema_dir, "system_config_event.avsc"]),
+        Path.join([schema_dir, "update_firmware_event.avsc"])
       ]
       |> Enum.map(&parse_schema/1)
       |> Enum.map(&register_schema/1)
