@@ -50,6 +50,19 @@ defmodule Sink.Connection.ServerHandler do
     {:ok, pid}
   end
 
+  @doc """
+  Send an ACK back to the Sink client for the message_id
+  """
+  def ack(client_id, message_id) do
+    case whereis(client_id) do
+      nil -> {:error, :no_connection}
+      pid -> GenServer.call(pid, {:ack, message_id})
+    end
+  end
+
+  @doc """
+  Sends a "publish" message to a Sink client
+  """
   def publish(pid, binary, ack_key) do
     GenServer.call(pid, {:publish, binary, ack_key})
   end
@@ -119,6 +132,13 @@ defmodule Sink.Connection.ServerHandler do
 
   # Server callbacks
 
+  def handle_call({:ack, message_id}, _from, state) do
+    frame = Sink.Connection.Protocol.encode_frame(:ack, message_id, <<>>)
+    :ok = :ssl.send(state.socket, frame)
+
+    {:reply, :ok, state}
+  end
+
   def handle_call({:publish, payload, ack_key}, {from, _}, state) do
     if State.inflight?(state, ack_key) do
       {:reply, {:error, :inflight}, state}
@@ -133,7 +153,7 @@ defmodule Sink.Connection.ServerHandler do
   # Response to data
 
   def handle_info(
-        {:ssl, socket, message},
+        {:ssl, _socket, message},
         %State{client_id: client_id, handler: handler} = state
       ) do
     new_state =
