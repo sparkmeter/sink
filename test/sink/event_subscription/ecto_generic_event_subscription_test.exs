@@ -55,7 +55,7 @@ defmodule Sink.EventSubscription.EctoEventGenericSubscriptionTest do
       :ok = TestEctoGenericEventLog.log(@topic, @offset, @event_data)
       :ok = TestEctoGenericEventSubscription.subscribe(@topic, @offset)
 
-      assert [{@topic, 0, 1}] == TestEctoGenericEventSubscription.queue()
+      assert [{@event_type_id, @event_key, 0, 1}] == TestEctoGenericEventSubscription.queue()
     end
 
     test "event_queue (prioritization ordering)" do
@@ -72,10 +72,10 @@ defmodule Sink.EventSubscription.EctoEventGenericSubscriptionTest do
       :ok = TestEctoGenericEventSubscription.subscribe({4, <<>>}, 1)
 
       assert [
-               {{3, <<>>}, 0, 1},
-               {{2, <<>>}, 0, 1},
-               {{1, <<>>}, 0, 1},
-               {{4, <<>>}, 0, 1}
+               {3, <<>>, 0, 1},
+               {2, <<>>, 0, 1},
+               {1, <<>>, 0, 1},
+               {4, <<>>, 0, 1}
              ] == TestEctoGenericEventSubscription.queue()
     end
   end

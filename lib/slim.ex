@@ -72,18 +72,20 @@ defmodule Slim do
       |> get_event_type()
       |> get_schema_name()
 
-    {:ok, decoded} = Avrora.decode(event_data, schema_name: schema_name)
-    event_type = get_event_type(event_type_id)
+    case Avrora.decode(event_data, schema_name: schema_name) do
+      {:ok, decoded} ->
+        event_type = get_event_type(event_type_id)
 
-    decoded_with_atom_keys = decode_with_atom_keys(decoded)
+        decoded_with_atom_keys = decode_with_atom_keys(decoded)
 
-    event =
-      event_type
-      |> struct(decoded_with_atom_keys)
-      |> event_type.set_key(key)
-      |> event_type.set_offset(offset)
+        event =
+          event_type
+          |> struct(decoded_with_atom_keys)
+          |> event_type.set_key(key)
+          |> event_type.set_offset(offset)
 
-    {:ok, event}
+        {:ok, event}
+    end
   end
 
   defp decode_with_atom_keys(nil), do: nil

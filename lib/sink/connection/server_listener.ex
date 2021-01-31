@@ -23,7 +23,6 @@ defmodule Sink.Connection.ServerListener do
   """
   def init(port: port, ssl_opts: ssl_opts, handler: handler) do
     Process.flag(:trap_exit, true)
-    opts = [{:port, port}]
     server_handler_opts = [ssl_opts: ssl_opts, handler: handler]
 
     {:ok, pid} =

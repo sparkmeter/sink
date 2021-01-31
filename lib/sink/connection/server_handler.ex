@@ -63,8 +63,11 @@ defmodule Sink.Connection.ServerHandler do
   @doc """
   Sends a "publish" message to a Sink client
   """
-  def publish(pid, binary, ack_key) do
-    GenServer.call(pid, {:publish, binary, ack_key})
+  def publish(client_id, binary, ack_key) do
+    case whereis(client_id) do
+      nil -> {:error, :no_connection}
+      pid -> GenServer.call(pid, {:publish, binary, ack_key})
+    end
   end
 
   def whereis(client_id) do
