@@ -9,7 +9,6 @@ defmodule Sink.EctoEventTypeConfig do
   - Retention policy
   - Transmit all vs only latest
   """
-  import Ecto.Query, only: [from: 2]
   @repo Application.fetch_env!(:sink, :ecto_repo)
 
   def get(event_type_config_table, event_type_id) do

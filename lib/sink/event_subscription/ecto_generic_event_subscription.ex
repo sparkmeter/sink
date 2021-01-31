@@ -96,7 +96,7 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
     )
     |> @repo.all()
     |> Enum.map(fn {event_type_id, key, consumer_offset, producer_offset} ->
-      {{event_type_id, key}, consumer_offset, producer_offset}
+      {event_type_id, key, consumer_offset, producer_offset}
     end)
   end
 end

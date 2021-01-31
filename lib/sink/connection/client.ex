@@ -68,7 +68,7 @@ defmodule Sink.Connection.Client do
     end
   end
 
-  def publish(binary, ack_key: ack_key) do
+  def publish(binary, ack_key) do
     if connected?() do
       pid = Process.whereis(__MODULE__)
       GenServer.call(pid, {:publish, binary, ack_key})
@@ -90,11 +90,12 @@ defmodule Sink.Connection.Client do
     {:reply, :ok, state}
   end
 
-  def handle_call({:publish, binary, ack_key}, {from, _}, state) do
+  def handle_call({:publish, payload, ack_key}, {from, _}, state) do
     if State.inflight?(state, ack_key) do
       {:reply, {:error, :inflight}, state}
     else
-      encoded = Connection.encode_publish(state.next_message_id, binary)
+      encoded = Sink.Connection.Protocol.encode_frame(:publish, state.next_message_id, payload)
+
       :ok = :ssl.send(state.socket, encoded)
       {:reply, :ok, State.put_inflight(state, {from, ack_key})}
     end
@@ -140,7 +141,7 @@ defmodule Sink.Connection.Client do
   # Response to data
 
   def handle_info(
-        {:ssl, socket, message},
+        {:ssl, _socket, message},
         %State{handler: handler} = state
       ) do
     new_state =

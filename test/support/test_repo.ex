@@ -20,7 +20,7 @@ defmodule Sink.TestRepo do
 
   defp migrate_repo!(repo) do
     opts = [all: true]
-    {:ok, pid, apps} = Mix.Ecto.ensure_started(repo, opts)
+    {:ok, _pid, _apps} = Mix.Ecto.ensure_started(repo, opts)
 
     Ecto.Migrator.up(Sink.TestRepo, 0, Sink.TestMigrations)
   end
