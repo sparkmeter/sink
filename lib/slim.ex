@@ -101,7 +101,7 @@ defmodule Slim do
 
   # REMOVE EVERYTHING BELOW THIS LINE ONCE TIDAL IS REPLACED
   def register_schemas do
-    schema_dir = Path.join(["..", "sink", "priv", "schemas", "io", "slim"])
+    schema_dir = Path.join([to_string(:code.priv_dir(:sink)), "schemas", "io", "slim"])
 
     _ =
       [

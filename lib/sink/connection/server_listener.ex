@@ -29,15 +29,7 @@ defmodule Sink.Connection.ServerListener do
       :ranch.start_listener(
         :sink,
         :ranch_ssl,
-        # %{socket_opts: opts},
-        [
-          port: port,
-          keyfile: ssl_opts[:keyfile],
-          certfile: ssl_opts[:certfile],
-          cacertfile: ssl_opts[:cacertfile],
-          verify: :verify_peer,
-          fail_if_no_peer_cert: true
-        ],
+        [port: port] ++ ssl_opts,
         ServerHandler,
         server_handler_opts
       )
