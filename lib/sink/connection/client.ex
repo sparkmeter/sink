@@ -9,6 +9,7 @@ defmodule Sink.Connection.Client do
   defmodule State do
     defstruct [
       :port,
+      :host,
       :socket,
       :transport,
       :peername,
@@ -49,10 +50,10 @@ defmodule Sink.Connection.Client do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def init(port: port, ssl_opts: ssl_opts, handler: handler) do
+  def init(port: port, host: host, ssl_opts: ssl_opts, handler: handler) do
     Process.send_after(self(), :open_connection, @first_connect_attempt)
 
-    {:ok, %State{port: port, ssl_opts: ssl_opts, handler: handler}}
+    {:ok, %State{port: port, host: host, ssl_opts: ssl_opts, handler: handler}}
   end
 
   def connected? do
@@ -109,9 +110,11 @@ defmodule Sink.Connection.Client do
           active: true
         )
 
-    case :ssl.connect('localhost', state.port, opts, 60_000) do
+    host = String.to_charlist(state.host)
+
+    case :ssl.connect(host, state.port, opts, 60_000) do
       {:ok, socket} ->
-        Logger.info("Connected to Sink Server")
+        Logger.info("Connected to Sink Server @ #{state.host}")
         # todo: send message to handler that we're connected
 
         {:noreply,
@@ -136,6 +139,20 @@ defmodule Sink.Connection.Client do
         Process.send_after(self(), :open_connection, 5_000)
         {:noreply, state}
     end
+  end
+
+  def handle_info(
+        {:ssl_error, {:sslsocket, {:gen_tcp, _port, :tls_connection, :undefined}, _},
+         {:tls_alert, {:unknown_ca, _}}},
+        state
+      ) do
+    Logger.warn("Unable to connect to Sink Server - unknown server certificate authority")
+    Process.send_after(self(), :open_connection, 60_000)
+
+    pid = Process.whereis(state.handler)
+    send(pid, {:ssl_error, :unknown_ca})
+
+    {:noreply, state}
   end
 
   # Response to data
