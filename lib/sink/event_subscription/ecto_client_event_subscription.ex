@@ -56,7 +56,10 @@ defmodule Sink.EventSubscription.EctoClientEventSubscription do
         :ok
 
       subscription ->
-        {:ok, _} = @repo.update(subscription, %{producer_offset: offset})
+        {:ok, _} =
+          subscription
+          |> Ecto.Changeset.change(producer_offset: offset)
+          |> @repo.update()
 
         :ok
     end
