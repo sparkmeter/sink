@@ -1,0 +1,27 @@
+{
+  "type": "record",
+  "name": "customer_meter_bill_event",
+  "namespace": "io.slim",
+  "fields": [
+    {
+      "name": "customer_meter_config_offset",
+      "type": "int"
+    },
+    {
+      "name": "meter_reading_offset",
+      "type": "int"
+    },
+    {
+      "name": "amount",
+      "type": "int"
+    },
+    {
+      "name": "balance",
+      "type": "int"
+    },
+    {
+      "name": "timestamp",
+      "type": "int"
+    }
+  ]
+}
