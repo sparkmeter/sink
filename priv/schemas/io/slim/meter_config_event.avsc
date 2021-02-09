@@ -4,6 +4,10 @@
   "namespace": "io.slim",
   "fields": [
     {
+      "name": "updated_at",
+      "type": "int"
+    },
+    {
       "name": "enabled",
       "type": "boolean"
     },
@@ -29,10 +33,6 @@
     },
     {
       "name": "throttle_count_limit",
-      "type": "int"
-    },
-    {
-      "name": "updated_at",
       "type": "int"
     }
   ]

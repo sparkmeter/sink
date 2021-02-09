@@ -129,6 +129,28 @@ defmodule SlimTest do
       assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
     end
 
+    test "MeterConfigEvent 2" do
+      # there is maybe a bug with avrora where if the first byte is 0 it doesn't decode properly
+      event = %Slim.Events.MeterConfigEvent{
+        current_limit: 65.0,
+        enabled: false,
+        meter_id: <<153, 145, 90, 231, 59, 158, 65, 53, 174, 63, 109, 62, 231, 158,
+          161, 151>>,
+        offset: 2,
+        power_limit: 1.0e3,
+        startup_delay: 0,
+        throttle_count_limit: 10,
+        throttle_off_time: 60,
+        throttle_on_time: 10,
+        updated_at: 1612828123
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert event.meter_id == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
     test "MeterConfigAppliedEvent" do
       event = %Events.MeterConfigAppliedEvent{
         meter_id: @meter_id,
