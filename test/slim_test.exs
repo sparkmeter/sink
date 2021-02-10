@@ -134,15 +134,14 @@ defmodule SlimTest do
       event = %Slim.Events.MeterConfigEvent{
         current_limit: 65.0,
         enabled: false,
-        meter_id: <<153, 145, 90, 231, 59, 158, 65, 53, 174, 63, 109, 62, 231, 158,
-          161, 151>>,
+        meter_id: <<153, 145, 90, 231, 59, 158, 65, 53, 174, 63, 109, 62, 231, 158, 161, 151>>,
         offset: 2,
         power_limit: 1.0e3,
         startup_delay: 0,
         throttle_count_limit: 10,
         throttle_off_time: 60,
         throttle_on_time: 10,
-        updated_at: 1612828123
+        updated_at: 1_612_828_123
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
