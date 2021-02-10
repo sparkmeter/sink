@@ -21,6 +21,7 @@ defmodule AvroBugTest do
       assert decoded == data
     end
 
+    @tag :skip
     test "when nerves_hub_link_enabled encodes to 0" do
       data = %{
         "nerves_hub_link_enabled" => false,
