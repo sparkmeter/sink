@@ -17,11 +17,10 @@ defmodule AvroBugTest do
 
       {:ok, encoded} = Avrora.encode(data, schema_name: @schema_name, format: :plain)
 
-      assert {:ok, decoded} = Avrora.decode(encoded, schema_name: @schema_name)
+      assert {:ok, decoded} = Avrora.decode(encoded, schema_name: @schema_name, format: :plain)
       assert decoded == data
     end
 
-    @tag :skip
     test "when nerves_hub_link_enabled encodes to 0" do
       data = %{
         "nerves_hub_link_enabled" => false,
@@ -31,7 +30,7 @@ defmodule AvroBugTest do
 
       {:ok, encoded} = Avrora.encode(data, schema_name: @schema_name, format: :plain)
 
-      assert {:ok, decoded} = Avrora.decode(encoded, schema_name: @schema_name)
+      assert {:ok, decoded} = Avrora.decode(encoded, schema_name: @schema_name, format: :plain)
       assert decoded == data
     end
   end
