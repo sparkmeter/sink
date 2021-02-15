@@ -69,13 +69,17 @@ defmodule Slim do
     {:ok, event_type_id, key, offset, event_data}
   end
 
+  def decode_event({_event_type_id, _key}, _offset, nil) do
+    {:error, "cannot decode nil event"}
+  end
+
   def decode_event({event_type_id, key}, offset, event_data) do
     schema_name =
       event_type_id
       |> get_event_type()
       |> get_schema_name()
 
-    case Avrora.decode(event_data, schema_name: schema_name) do
+    case Avrora.decode(event_data, schema_name: schema_name, format: :plain) do
       {:ok, decoded} ->
         event_type = get_event_type(event_type_id)
 
