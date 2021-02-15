@@ -1,0 +1,55 @@
+{
+  "type": "record",
+  "name": "cloud_credit_event",
+  "namespace": "io.slim",
+  "fields": [
+    {
+      "name": "cloud_credit_id",
+      "type": {
+        "type": "fixed",
+        "name": "cloud_credit_id_bin",
+        "size": 16
+      }
+    },
+    {
+      "name": "amount",
+      "type": "int"
+    },
+    {
+      "name": "balance",
+      "type": "int"
+    },
+    {
+      "name": "portfolio_id",
+      "type": {
+        "type": "fixed",
+        "name": "portfolio_id_bin",
+        "size": 16
+      }
+    },
+    {
+      "name": "external_identifier",
+      "type": "string"
+    },
+    {
+      "name": "memo",
+      "type": "string"
+    },
+    {
+      "name": "updated_by_id",
+      "type": {
+        "type": "fixed",
+        "name": "updated_by_id_bin",
+        "size": 16
+      }
+    },
+    {
+      "name": "credited_at",
+      "type": "int"
+    },
+    {
+      "name": "timestamp",
+      "type": "int"
+    }
+  ]
+}

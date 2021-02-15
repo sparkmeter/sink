@@ -2,6 +2,7 @@ defmodule SlimTest do
   use ExUnit.Case, async: true
   alias Slim.Events
 
+  @cloud_credit_id "00000000-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
   @cm_config_id "44445ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
   @customer_id "0cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
   @gid_mac Varint.LEB128.encode(1234)
@@ -11,6 +12,27 @@ defmodule SlimTest do
   @user_id "8cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
 
   describe "encode/decode events" do
+    test "CloudCreditEvent" do
+      event = %Events.CloudCreditEvent{
+        cloud_credit_id: @cloud_credit_id,
+        customer_id: @customer_id,
+        amount: 1_000,
+        balance: 1_000_000,
+        portfolio_id: @portfolio_id,
+        external_identifier: "payment 1",
+        memo: "this is a payment",
+        offset: 1,
+        updated_by_id: @user_id,
+        credited_at: 1_586_632_400,
+        timestamp: 1_586_632_500
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert @customer_id == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
     test "CustomerEvent (with optional fields)" do
       event = %Events.CustomerEvent{
         id: @customer_id,
