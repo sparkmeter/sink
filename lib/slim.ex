@@ -106,7 +106,7 @@ defmodule Slim do
 
   defp decode_with_atom_keys(map = %{}) do
     map
-    |> Enum.map(fn {k, v} -> {String.to_existing_atom(k), decode_with_atom_keys(v)} end)
+    |> Enum.map(fn {k, v} -> {String.to_atom(k), decode_with_atom_keys(v)} end)
     |> Enum.into(%{})
   end
 
