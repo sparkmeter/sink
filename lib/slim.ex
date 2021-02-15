@@ -18,6 +18,7 @@ defmodule Slim do
     6 => Events.MeterConfigEvent,
     7 => Events.MeterConfigAppliedEvent,
     8 => Events.CustomerMeterBillEvent,
+    9 => Events.CloudCreditEvent,
     # Control Messages
     256 => Events.SystemConfigEvent,
     257 => Events.UpdateFirmwareEvent
@@ -32,6 +33,7 @@ defmodule Slim do
     Events.MeterConfigEvent => 6,
     Events.MeterConfigAppliedEvent => 7,
     Events.CustomerMeterBillEvent => 8,
+    Events.CloudCreditEvent => 9,
     # Control Messages
     Events.SystemConfigEvent => 256,
     Events.UpdateFirmwareEvent => 257
@@ -46,6 +48,7 @@ defmodule Slim do
     Events.MeterConfigEvent => "io.slim.meter_config_event",
     Events.MeterConfigAppliedEvent => "io.slim.meter_config_applied_event",
     Events.CustomerMeterBillEvent => "io.slim.customer_meter_bill_event",
+    Events.CloudCreditEvent => "io.slim.cloud_credit_event",
     # Control Messages
     Events.SystemConfigEvent => "io.slim.system_config_event",
     Events.UpdateFirmwareEvent => "io.slim.update_firmware_event"
@@ -125,7 +128,8 @@ defmodule Slim do
         Path.join([schema_dir, "meter_config_applied_event.avsc"]),
         Path.join([schema_dir, "system_config_event.avsc"]),
         Path.join([schema_dir, "update_firmware_event.avsc"]),
-        Path.join([schema_dir, "customer_meter_bill_event.avsc"])
+        Path.join([schema_dir, "customer_meter_bill_event.avsc"]),
+        Path.join([schema_dir, "cloud_credit_event.avsc"])
       ]
       |> Enum.map(&parse_schema/1)
       |> Enum.map(&register_schema/1)
