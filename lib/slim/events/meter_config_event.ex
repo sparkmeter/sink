@@ -11,7 +11,7 @@ defmodule Slim.Events.MeterConfigEvent do
     :throttle_off_time,
     :throttle_count_limit,
     :offset,
-    :updated_at
+    :timestamp
   ]
 
   def key(meter_config), do: meter_config.meter_id

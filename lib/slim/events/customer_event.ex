@@ -4,7 +4,8 @@ defmodule Slim.Events.CustomerEvent do
             portfolio_id: nil,
             code: nil,
             updated_by_id: nil,
-            offset: nil
+            offset: nil,
+            timestamp: nil
 
   @type t() :: %__MODULE__{
           id: <<_::128>>,
@@ -12,7 +13,8 @@ defmodule Slim.Events.CustomerEvent do
           portfolio_id: <<_::128>> | nil,
           code: String.t() | nil,
           updated_by_id: <<_::16>>,
-          offset: non_neg_integer()
+          offset: non_neg_integer(),
+          timestamp: non_neg_integer()
         }
 
   def key(event), do: event.id

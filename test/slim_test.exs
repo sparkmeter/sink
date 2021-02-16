@@ -40,7 +40,8 @@ defmodule SlimTest do
         portfolio_id: @portfolio_id,
         code: "test",
         offset: 1,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -56,7 +57,8 @@ defmodule SlimTest do
         portfolio_id: nil,
         code: nil,
         offset: 1,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -88,7 +90,8 @@ defmodule SlimTest do
         serial_number: "SM60R-01-00001551",
         address: "742 Evergreen Terrace",
         offset: 1,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -105,7 +108,8 @@ defmodule SlimTest do
         tariff_id: @tariff_id,
         operating_mode: "auto",
         offset: 1,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -122,7 +126,8 @@ defmodule SlimTest do
         tariff_id: nil,
         operating_mode: "auto",
         offset: 1,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -142,7 +147,7 @@ defmodule SlimTest do
         throttle_off_time: 60,
         throttle_count_limit: 10,
         offset: 1,
-        updated_at: 1_586_632_500
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -163,7 +168,7 @@ defmodule SlimTest do
         throttle_count_limit: 10,
         throttle_off_time: 60,
         throttle_on_time: 10,
-        updated_at: 1_612_828_123
+        timestamp: 1_612_828_123
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -177,7 +182,7 @@ defmodule SlimTest do
         meter_id: @meter_id,
         last_meter_config_offset: 5,
         offset: 3,
-        updated_at: 1_586_632_500
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -205,7 +210,8 @@ defmodule SlimTest do
         uptime_secs: 99_999,
         voltage_avg: 0.0,
         voltage_max: 0.0,
-        voltage_min: 0.0
+        voltage_min: 0.0,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -219,8 +225,8 @@ defmodule SlimTest do
       event = %Events.SystemConfigEvent{
         nerves_hub_link_enabled: true,
         offset: 1,
-        updated_at: 1_586_632_500,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -236,7 +242,8 @@ defmodule SlimTest do
         load_limit: 9_000,
         rate: :erlang.float_to_binary(10.50),
         offset: 1,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -249,8 +256,8 @@ defmodule SlimTest do
       event = %Events.UpdateFirmwareEvent{
         to: "nerves_hub",
         offset: 1,
-        updated_at: 1_586_632_500,
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -266,7 +273,8 @@ defmodule SlimTest do
         offset: 1,
         username: "slim",
         shared_secret: "12345",
-        updated_by_id: @user_id
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)

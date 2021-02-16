@@ -22,6 +22,10 @@
         "name": "updated_by_id",
         "size": 16
       }
+    },
+    {
+      "name": "timestamp",
+      "type": "int"
     }
   ]
 }

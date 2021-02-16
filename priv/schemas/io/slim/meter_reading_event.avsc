@@ -86,6 +86,10 @@
     {
       "name": "voltage_min",
       "type": "float"
+    },
+    {
+      "name": "timestamp",
+      "type": "int"
     }
   ]
 }

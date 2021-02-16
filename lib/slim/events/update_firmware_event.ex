@@ -1,7 +1,7 @@
 defmodule Slim.Events.UpdateFirmwareEvent do
   @type t() :: %__MODULE__{}
 
-  defstruct [:to, :offset, :updated_by_id, :updated_at]
+  defstruct [:to, :offset, :updated_by_id, :timestamp]
 
   def key(_update_firmware_event), do: <<>>
 

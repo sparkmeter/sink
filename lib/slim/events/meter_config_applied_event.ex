@@ -5,7 +5,7 @@ defmodule Slim.Events.MeterConfigAppliedEvent do
     :meter_id,
     :last_meter_config_offset,
     :offset,
-    :updated_at
+    :timestamp
   ]
 
   def key(meter_config), do: meter_config.meter_id

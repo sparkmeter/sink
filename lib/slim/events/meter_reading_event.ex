@@ -19,7 +19,8 @@ defmodule Slim.Events.MeterReadingEvent do
     :uptime_secs,
     :voltage_avg,
     :voltage_max,
-    :voltage_min
+    :voltage_min,
+    :timestamp
   ]
 
   def key(meter_reading_event) do

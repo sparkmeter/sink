@@ -1,7 +1,7 @@
 defmodule Slim.Events.TariffEvent do
   @type t() :: %__MODULE__{}
 
-  defstruct [:id, :name, :rate, :load_limit, :offset, :updated_by_id]
+  defstruct [:id, :name, :rate, :load_limit, :offset, :updated_by_id, :timestamp]
 
   def key(tariff_event), do: tariff_event.id
 

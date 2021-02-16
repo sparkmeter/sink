@@ -1,7 +1,7 @@
 defmodule Slim.Events.UserEvent do
   @type t() :: %__MODULE__{}
 
-  defstruct [:id, :email, :offset, :username, :shared_secret, :updated_by_id]
+  defstruct [:id, :email, :offset, :username, :shared_secret, :updated_by_id, :timestamp]
 
   def key(user_event), do: user_event.id
 
