@@ -4,7 +4,7 @@
   "namespace": "io.slim",
   "fields": [
     {
-      "name": "updated_at",
+      "name": "timestamp",
       "type": "int"
     },
     {

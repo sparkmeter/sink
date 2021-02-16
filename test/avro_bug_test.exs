@@ -11,7 +11,7 @@ defmodule AvroBugTest do
     test "when nerves_hub_link_enabled encodes to 1" do
       event = %Events.SystemConfigEvent{
         nerves_hub_link_enabled: true,
-        updated_at: 1_586_632_500,
+        timestamp: 1_586_632_500,
         updated_by_id: @user_id
       }
 
@@ -24,7 +24,7 @@ defmodule AvroBugTest do
     test "when nerves_hub_link_enabled encodes to 0" do
       event = %Events.SystemConfigEvent{
         nerves_hub_link_enabled: false,
-        updated_at: 1_586_632_500,
+        timestamp: 1_586_632_500,
         updated_by_id: @user_id
       }
 

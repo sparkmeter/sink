@@ -8,7 +8,7 @@
       "type": "int"
     },
     {
-      "name": "updated_at",
+      "name": "timestamp",
       "type": "int"
     }
   ]

@@ -1,7 +1,16 @@
 defmodule Slim.Events.CustomerMeterConfigEvent do
   @type t() :: %__MODULE__{}
 
-  defstruct [:id, :meter_id, :customer_id, :tariff_id, :operating_mode, :offset, :updated_by_id]
+  defstruct [
+    :id,
+    :meter_id,
+    :customer_id,
+    :tariff_id,
+    :operating_mode,
+    :offset,
+    :updated_by_id,
+    :timestamp
+  ]
 
   def key(event), do: event.id
 

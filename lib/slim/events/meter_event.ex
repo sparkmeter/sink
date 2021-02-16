@@ -1,7 +1,7 @@
 defmodule Slim.Events.MeterEvent do
   @type t() :: %__MODULE__{}
 
-  defstruct [:id, :serial_number, :address, :offset, :updated_by_id]
+  defstruct [:id, :serial_number, :address, :offset, :updated_by_id, :timestamp]
 
   def key(meter_event), do: meter_event.id
 
