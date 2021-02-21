@@ -29,7 +29,7 @@ defmodule Sink.Connection.ServerListener do
       :ranch.start_listener(
         :sink,
         :ranch_ssl,
-        [port: port] ++ ssl_opts,
+        [port: port, keepalive: true] ++ ssl_opts,
         ServerHandler,
         server_handler_opts
       )
