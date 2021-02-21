@@ -21,15 +21,21 @@
     },
     {
       "name": "portfolio_id",
-      "type": {
-        "type": "fixed",
-        "name": "portfolio_id_bin",
-        "size": 16
-      }
+      "type": [
+        "null",
+        {
+          "type": "fixed",
+          "name": "portfolio_id_bin",
+          "size": 16
+        }
+      ]
     },
     {
       "name": "external_identifier",
-      "type": "string"
+      "type": [
+        "null",
+        "string"
+      ]
     },
     {
       "name": "memo",
