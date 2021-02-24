@@ -1,7 +1,5 @@
 defmodule Sink.Connection.Client do
   @moduledoc false
-  @first_connect_attempt 50
-
   use GenServer
   require Logger
   alias Sink.Connection
@@ -16,11 +14,24 @@ defmodule Sink.Connection.Client do
       :next_message_id,
       :ssl_opts,
       :handler,
+      :connect_attempt_interval,
       inflight: %{}
     ]
 
+    @first_connect_attempt 50
+
     def connected?(%State{socket: nil}), do: false
     def connected?(%State{socket: _}), do: true
+
+    def init(port, host, ssl_opts, handler) do
+      %State{
+        port: port,
+        host: host,
+        ssl_opts: ssl_opts,
+        handler: handler,
+        connect_attempt_interval: @first_connect_attempt
+      }
+    end
 
     def put_inflight(
           %State{inflight: inflight, next_message_id: next_message_id} = state,
@@ -42,6 +53,39 @@ defmodule Sink.Connection.Client do
     def remove_inflight(%State{inflight: inflight} = state, message_id) do
       Map.put(state, :inflight, Map.delete(inflight, message_id))
     end
+
+    def backoff(%State{connect_attempt_interval: nil} = state) do
+      %State{state | connect_attempt_interval: @first_connect_attempt}
+    end
+
+    def backoff(%State{connect_attempt_interval: @first_connect_attempt} = state) do
+      %State{state | connect_attempt_interval: 1_000}
+    end
+
+    def backoff(%State{connect_attempt_interval: 1_000} = state) do
+      %State{state | connect_attempt_interval: 5_000}
+    end
+
+    def backoff(%State{connect_attempt_interval: 5_000} = state) do
+      %State{state | connect_attempt_interval: 10_000}
+    end
+
+    def backoff(%State{connect_attempt_interval: 10_000} = state) do
+      %State{state | connect_attempt_interval: 20_000}
+    end
+
+    def backoff(%State{connect_attempt_interval: _} = state) do
+      %State{state | connect_attempt_interval: 30_000}
+    end
+
+    def connected(%State{} = state, socket) do
+      %State{
+        state
+        | socket: socket,
+          next_message_id: Sink.Connection.next_message_id(nil),
+          connect_attempt_interval: nil
+      }
+    end
   end
 
   # Client
@@ -51,13 +95,24 @@ defmodule Sink.Connection.Client do
   end
 
   def init(port: port, host: host, ssl_opts: ssl_opts, handler: handler) do
-    Process.send_after(self(), :open_connection, @first_connect_attempt)
+    state = State.init(port, host, ssl_opts, handler)
 
-    {:ok, %State{port: port, host: host, ssl_opts: ssl_opts, handler: handler}}
+    Process.send_after(self(), :open_connection, state.connect_attempt_interval)
+
+    {:ok, state}
   end
 
   def connected? do
     GenServer.call(Process.whereis(__MODULE__), :connected?)
+  end
+
+  @doc """
+  Returns the internal state of the Sink.Connection.Client process.
+
+  Useful if you want to check the config parameters and state of the connection process.
+  """
+  def info do
+    :sys.get_state(Process.whereis(__MODULE__))
   end
 
   def ack(message_id) do
@@ -117,27 +172,24 @@ defmodule Sink.Connection.Client do
         Logger.info("Connected to Sink Server @ #{state.host}")
         # todo: send message to handler that we're connected
 
-        {:noreply,
-         %State{
-           state
-           | socket: socket,
-             #            transport: transport,
-             #            peername: peername,
-             next_message_id: Connection.next_message_id(nil)
-         }}
+        {:noreply, State.connected(state, socket)}
 
       {:error, :econnrefused} ->
         # can't find Sink Server, retry
-        Process.send_after(self(), :open_connection, 5_000)
-        {:noreply, state}
+        new_state = State.backoff(state)
+        Process.send_after(self(), :open_connection, new_state.connect_attempt_interval)
+        {:noreply, new_state}
 
       {:error, :timeout} ->
-        Process.send_after(self(), :open_connection, 5_000)
-        {:noreply, state}
+        new_state = State.backoff(state)
+        Process.send_after(self(), :open_connection, new_state.connect_attempt_interval)
+        {:noreply, new_state}
 
       {:error, :closed} ->
-        Process.send_after(self(), :open_connection, 5_000)
-        {:noreply, state}
+        # closed by server
+        new_state = State.backoff(state)
+        Process.send_after(self(), :open_connection, new_state.connect_attempt_interval)
+        {:noreply, new_state}
     end
   end
 
@@ -193,6 +245,7 @@ defmodule Sink.Connection.Client do
       "Peer #{peername} disconnected"
     end)
 
+    # todo? probably don't return a `:stop
     Process.send_after(self(), :open_connection, 5_000)
 
     {:stop, :normal, state}
@@ -203,6 +256,7 @@ defmodule Sink.Connection.Client do
       "SSL Peer #{peername} disconnected"
     end)
 
+    # todo? probably don't return a `:stop
     Process.send_after(self(), :open_connection, 5_000)
 
     {:stop, :normal, state}
@@ -213,6 +267,7 @@ defmodule Sink.Connection.Client do
       "Error with peer #{peername}: #{inspect(reason)}"
     end)
 
+    # todo? probably don't return a `:stop
     {:stop, :normal, state}
   end
 end
