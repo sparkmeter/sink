@@ -6,6 +6,8 @@ defmodule Sink.Connection.ServerHandler do
   require Logger
   alias Sink.Connection
 
+  @registry __MODULE__
+
   defmodule State do
     defstruct [
       :client_id,
@@ -71,12 +73,21 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   def whereis(client_id) do
-    process_name = String.to_atom("sink-#{client_id}")
-    Process.whereis(process_name)
+    @registry
+    |> Registry.lookup(client_id)
+    |> case do
+      [] -> nil
+      [{pid, _}] -> pid
+    end
   end
 
   def connected?(client_id) do
-    whereis(client_id) != nil
+    @registry
+    |> Registry.lookup(client_id)
+    |> case do
+      [] -> false
+      [{_pid, _}] -> true
+    end
   end
 
   @doc """
@@ -108,8 +119,7 @@ defmodule Sink.Connection.ServerHandler do
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
-        process_name = String.to_atom("sink-#{client_id}")
-        Process.register(self(), process_name)
+        {:ok, _} = Registry.register(@registry, client_id, DateTime.utc_now())
 
         :gen_server.enter_loop(
           __MODULE__,
@@ -123,7 +133,7 @@ defmodule Sink.Connection.ServerHandler do
             ssl_opts: ssl_opts,
             next_message_id: Connection.next_message_id(nil)
           },
-          {:local, process_name}
+          via_tuple(client_id)
         )
 
       {:error, :unknown_client} ->
@@ -211,6 +221,10 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   # Helpers
+
+  defp via_tuple(client_id) do
+    {:via, Registry, {@registry, client_id}}
+  end
 
   defp stringify_peername(socket) do
     {:ok, {addr, port}} = :ssl.peername(socket)
