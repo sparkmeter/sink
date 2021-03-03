@@ -15,11 +15,20 @@ defmodule Sink.Connection.Client do
       :ssl_opts,
       :handler,
       :connect_attempt_interval,
+      :disconnect_msg,
+      :disconnect_reason,
       inflight: %{}
     ]
 
     @first_connect_attempt 50
 
+    @doc """
+    This was meant to mean "is the client connected?". However that may not be accurate since
+    the client can lose network connection and :ssl/:gen_tcp won't know. Probably need to change
+    the name to communicate this and add some code to check last msg received from Server and
+    ability to send a ping.
+
+    """
     def connected?(%State{socket: nil}), do: false
     def connected?(%State{socket: _}), do: true
 
@@ -84,6 +93,16 @@ defmodule Sink.Connection.Client do
         | socket: socket,
           next_message_id: Sink.Connection.next_message_id(nil),
           connect_attempt_interval: nil
+      }
+    end
+
+    def disconnected(%State{} = state, msg, reason \\ nil) do
+      %State{
+        state
+        | socket: nil,
+          connect_attempt_interval: nil,
+          disconnect_msg: msg,
+          disconnect_reason: reason
       }
     end
   end
@@ -248,7 +267,7 @@ defmodule Sink.Connection.Client do
     # todo? probably don't return a `:stop
     Process.send_after(self(), :open_connection, 5_000)
 
-    {:stop, :normal, state}
+    {:stop, :normal, State.disconnected(state, :tcp_closed)}
   end
 
   def handle_info({:ssl_closed, _}, %State{peername: peername} = state) do
@@ -259,7 +278,7 @@ defmodule Sink.Connection.Client do
     # todo? probably don't return a `:stop
     Process.send_after(self(), :open_connection, 5_000)
 
-    {:stop, :normal, state}
+    {:stop, :normal, State.disconnected(state, :ssl_closed)}
   end
 
   def handle_info({:tcp_error, _, reason}, %State{peername: peername} = state) do
@@ -268,6 +287,6 @@ defmodule Sink.Connection.Client do
     end)
 
     # todo? probably don't return a `:stop
-    {:stop, :normal, state}
+    {:stop, :normal, State.disconnected(state, :tcp_error, reason)}
   end
 end
