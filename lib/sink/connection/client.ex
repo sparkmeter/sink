@@ -162,15 +162,12 @@ defmodule Sink.Connection.Client do
 
         {:noreply, State.connected(state, pid)}
 
-      {:error, :econnrefused} ->
-        Logger.warn("Can't find Sink server")
-
-        new_state = State.backoff(state)
-        Process.send_after(self(), :open_connection, new_state.connect_attempt_interval)
-        {:noreply, new_state}
-
       {:error, reason} ->
-        Logger.error("Failed to connect to Sink server, #{IO.inspect(reason)}")
+        if reason in [:econnrefused, :closed] do
+          Logger.warn("Can't find Sink server - #{inspect(reason)}")
+        else
+          Logger.error("Failed to connect to Sink server, #{inspect(reason)}")
+        end
 
         new_state = State.backoff(state)
         Process.send_after(self(), :open_connection, new_state.connect_attempt_interval)
