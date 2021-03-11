@@ -32,6 +32,7 @@ defmodule Sink.MixProject do
       {:ranch, "1.7.1"},
       # {:sqlite_ecto2, "2.4.1"}
       {:sqlite_ecto2, "2.4.1", only: :test},
+      {:telemetry, "~>0.4"},
       {:varint, "1.2.0"},
       {:x509, "~> 0.7"}
     ]

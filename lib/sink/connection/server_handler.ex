@@ -17,6 +17,7 @@ defmodule Sink.Connection.ServerHandler do
       :handler,
       :next_message_id,
       :ssl_opts,
+      :start_time,
       inflight: %{}
     ]
 
@@ -49,6 +50,7 @@ defmodule Sink.Connection.ServerHandler do
   """
   def start_link(ref, socket, transport, opts) do
     pid = :proc_lib.spawn_link(__MODULE__, :init, [{ref, socket, transport, opts}])
+
     {:ok, pid}
   end
 
@@ -121,6 +123,8 @@ defmodule Sink.Connection.ServerHandler do
       {:ok, client_id} ->
         {:ok, _} = Registry.register(@registry, client_id, DateTime.utc_now())
 
+        Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
+
         :gen_server.enter_loop(
           __MODULE__,
           [],
@@ -131,7 +135,8 @@ defmodule Sink.Connection.ServerHandler do
             peername: peername,
             handler: handler,
             ssl_opts: ssl_opts,
-            next_message_id: Connection.next_message_id(nil)
+            next_message_id: Connection.next_message_id(nil),
+            start_time: System.monotonic_time()
           },
           via_tuple(client_id)
         )
@@ -196,26 +201,53 @@ defmodule Sink.Connection.ServerHandler do
 
   # Connection Management
 
-  def handle_info({:tcp_closed, _}, %State{peername: peername} = state) do
+  def handle_info(
+        {:tcp_closed, _},
+        %State{client_id: client_id, peername: peername, start_time: start_time} = state
+      ) do
     Logger.info(fn ->
       "Peer #{peername} disconnected"
     end)
 
+    Sink.Telemetry.stop(
+      :connection,
+      start_time,
+      %{client_id: client_id, peername: peername, reason: :tcp_closed}
+    )
+
     {:stop, :normal, state}
   end
 
-  def handle_info({:ssl_closed, _}, %State{peername: peername} = state) do
+  def handle_info(
+        {:ssl_closed, _},
+        %State{client_id: client_id, peername: peername, start_time: start_time} = state
+      ) do
     Logger.info(fn ->
       "SSL Peer #{peername} disconnected"
     end)
 
+    Sink.Telemetry.stop(
+      :connection,
+      start_time,
+      %{client_id: client_id, peername: peername, reason: :ssl_closed}
+    )
+
     {:stop, :normal, state}
   end
 
-  def handle_info({:tcp_error, _, reason}, %State{peername: peername} = state) do
+  def handle_info(
+        {:tcp_error, _, reason},
+        %State{client_id: client_id, peername: peername, start_time: start_time} = state
+      ) do
     Logger.info(fn ->
       "Error with peer #{peername}: #{inspect(reason)}"
     end)
+
+    Sink.Telemetry.stop(
+      :connection,
+      start_time,
+      %{client_id: client_id, peername: peername, reason: :tcp_error}
+    )
 
     {:stop, :normal, state}
   end
