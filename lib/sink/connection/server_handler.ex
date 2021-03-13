@@ -7,6 +7,10 @@ defmodule Sink.Connection.ServerHandler do
   alias Sink.Connection
 
   @registry __MODULE__
+  @mod_transport Application.compile_env!(:sink, :transport)
+  # @is_not_test is a short term ugly hack to only call :ranch if we are not in test,
+  # this could be replaced with another Mox mock
+  @is_not_test @mod_transport == Sink.Connection.Transport.SSL
 
   defmodule State do
     defstruct [
@@ -93,11 +97,24 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   @doc """
+  Remove an existing connection because the client has reconnected.
+  """
+  def boot_duplicate(pid) do
+    if Process.exit(pid, :normal) do
+      :ok
+    else
+      :error
+    end
+  end
+
+  @doc """
   Initiates the handler, acknowledging the connection was accepted.
   Finally it makes the existing process into a `:gen_server` process and
   enters the `:gen_server` receive loop with `:gen_server.enter_loop/3`.
   """
+  @impl true
   def init({ref, socket, transport, opts}) do
+    Process.flag(:trap_exit, true)
     handler = opts[:handler]
     ssl_opts = opts[:ssl_opts]
     peername = stringify_peername(socket)
@@ -106,7 +123,10 @@ defmodule Sink.Connection.ServerHandler do
       "Peer #{peername} connecting"
     end)
 
-    :ok = :ranch.accept_ack(ref)
+    # remove this conditional once hack for testing is removed
+    if @is_not_test do
+      :ok = :ranch.accept_ack(ref)
+    end
 
     ssl_opts =
       [:binary] ++
@@ -117,11 +137,21 @@ defmodule Sink.Connection.ServerHandler do
 
     :ok = transport.setopts(socket, active: true, packet: 2)
 
-    {:ok, peer_cert} = :ssl.peercert(socket)
+    {:ok, peer_cert} = @mod_transport.peercert(socket)
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
-        {:ok, _} = Registry.register(@registry, client_id, DateTime.utc_now())
+        :ok =
+          case Registry.register(@registry, client_id, DateTime.utc_now()) do
+            {:ok, _} ->
+              :ok
+
+            {:error, {:already_registered, existing_pid}} ->
+              boot_duplicate(existing_pid)
+              register_when_clear(client_id)
+          end
+
+        # todo: send a message to the handler that we are connected
 
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
 
@@ -148,11 +178,28 @@ defmodule Sink.Connection.ServerHandler do
     end
   end
 
+  @impl true
+  def terminate(
+        reason,
+        %State{client_id: client_id, peername: peername, start_time: start_time} = state
+      ) do
+    Sink.Telemetry.stop(
+      :connection,
+      start_time,
+      %{client_id: client_id, peername: peername, reason: reason}
+    )
+
+    # todo: send a message to the handler that we are disconnected
+
+    state
+  end
+
   # Server callbacks
 
+  @impl true
   def handle_call({:ack, message_id}, _from, state) do
     frame = Sink.Connection.Protocol.encode_frame(:ack, message_id, <<>>)
-    :ok = :ssl.send(state.socket, frame)
+    :ok = @mod_transport.send(state.socket, frame)
 
     {:reply, :ok, state}
   end
@@ -163,13 +210,14 @@ defmodule Sink.Connection.ServerHandler do
     else
       encoded = Sink.Connection.Protocol.encode_frame(:publish, state.next_message_id, payload)
 
-      :ok = :ssl.send(state.socket, encoded)
+      :ok = @mod_transport.send(state.socket, encoded)
       {:reply, :ok, State.put_inflight(state, {from, ack_key})}
     end
   end
 
   # Response to data
 
+  @impl true
   def handle_info(
         {:ssl, _socket, message},
         %State{client_id: client_id, handler: handler} = state
@@ -201,54 +249,19 @@ defmodule Sink.Connection.ServerHandler do
 
   # Connection Management
 
-  def handle_info(
-        {:tcp_closed, _},
-        %State{client_id: client_id, peername: peername, start_time: start_time} = state
-      ) do
-    Logger.info(fn ->
-      "Peer #{peername} disconnected"
-    end)
-
-    Sink.Telemetry.stop(
-      :connection,
-      start_time,
-      %{client_id: client_id, peername: peername, reason: :tcp_closed}
-    )
-
+  def handle_info({:tcp_closed, _}, state) do
     {:stop, :normal, state}
   end
 
-  def handle_info(
-        {:ssl_closed, _},
-        %State{client_id: client_id, peername: peername, start_time: start_time} = state
-      ) do
-    Logger.info(fn ->
-      "SSL Peer #{peername} disconnected"
-    end)
-
-    Sink.Telemetry.stop(
-      :connection,
-      start_time,
-      %{client_id: client_id, peername: peername, reason: :ssl_closed}
-    )
-
+  def handle_info({:ssl_closed, _}, state) do
     {:stop, :normal, state}
   end
 
-  def handle_info(
-        {:tcp_error, _, reason},
-        %State{client_id: client_id, peername: peername, start_time: start_time} = state
-      ) do
-    Logger.info(fn ->
-      "Error with peer #{peername}: #{inspect(reason)}"
-    end)
+  def handle_info({:tcp_error, _, _reason}, state) do
+    {:stop, :normal, state}
+  end
 
-    Sink.Telemetry.stop(
-      :connection,
-      start_time,
-      %{client_id: client_id, peername: peername, reason: :tcp_error}
-    )
-
+  def handle_info({:EXIT, _from, :normal}, state) do
     {:stop, :normal, state}
   end
 
@@ -259,7 +272,7 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   defp stringify_peername(socket) do
-    {:ok, {addr, port}} = :ssl.peername(socket)
+    {:ok, {addr, port}} = @mod_transport.peername(socket)
 
     address =
       addr
@@ -267,5 +280,16 @@ defmodule Sink.Connection.ServerHandler do
       |> to_string()
 
     "#{address}:#{port}"
+  end
+
+  defp register_when_clear(client_id) do
+    case Registry.register(@registry, client_id, DateTime.utc_now()) do
+      {:ok, _} ->
+        :ok
+
+      {:error, {:already_registered, _existing_pid}} ->
+        :timer.sleep(10)
+        register_when_clear(client_id)
+    end
   end
 end
