@@ -29,6 +29,7 @@ defmodule Sink.MixProject do
       # {:ecto, "2.2.11"},
       {:ecto, "2.2.11", only: :test},
       {:erlavro, "~> 2.9.0"},
+      {:mox, "~> 1.0", only: :test},
       {:ranch, "1.7.1"},
       # {:sqlite_ecto2, "2.4.1"}
       {:sqlite_ecto2, "2.4.1", only: :test},
@@ -38,6 +39,6 @@ defmodule Sink.MixProject do
     ]
   end
 
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:test), do: ["test/support", "lib"]
   defp elixirc_paths(_), do: ["lib"]
 end
