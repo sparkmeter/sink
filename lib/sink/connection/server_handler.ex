@@ -27,10 +27,10 @@ defmodule Sink.Connection.ServerHandler do
 
     def put_inflight(
           %State{inflight: inflight, next_message_id: next_message_id} = state,
-          {ack_handler, ack_key}
+          {ack_from, ack_key}
         ) do
       state
-      |> Map.put(:inflight, Map.put(inflight, next_message_id, {ack_handler, ack_key}))
+      |> Map.put(:inflight, Map.put(inflight, next_message_id, {ack_from, ack_key}))
       |> Map.put(:next_message_id, Connection.next_message_id(next_message_id))
     end
 
@@ -151,7 +151,7 @@ defmodule Sink.Connection.ServerHandler do
               register_when_clear(client_id)
           end
 
-        # todo: send a message to the handler that we are connected
+        :ok = handler.up(client_id)
 
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
 
@@ -181,7 +181,8 @@ defmodule Sink.Connection.ServerHandler do
   @impl true
   def terminate(
         reason,
-        %State{client_id: client_id, peername: peername, start_time: start_time} = state
+        %State{client_id: client_id, peername: peername, start_time: start_time, handler: handler} =
+          state
       ) do
     Sink.Telemetry.stop(
       :connection,
@@ -189,7 +190,7 @@ defmodule Sink.Connection.ServerHandler do
       %{client_id: client_id, peername: peername, reason: reason}
     )
 
-    # todo: send a message to the handler that we are disconnected
+    :ok = handler.down(client_id)
 
     state
   end
@@ -227,21 +228,40 @@ defmodule Sink.Connection.ServerHandler do
       |> Connection.Protocol.decode_frame()
       |> case do
         {:ack, message_id} ->
-          {ack_handler, ack_key} = State.find_inflight(state, message_id)
+          {ack_from, ack_key} = State.find_inflight(state, message_id)
 
-          send(ack_handler, {:ack, client_id, ack_key})
-
-          State.remove_inflight(state, message_id)
+          case handler.handle_ack(ack_from, client_id, ack_key) do
+            :ok ->
+              State.remove_inflight(state, message_id)
+              # todo: error handling
+              # :error ->
+              # what to do if we can't ack?
+              # rescue ->
+              # how do we handle a failed ack?
+          end
 
         {:publish, message_id, payload} ->
           {event_type_id, key, offset, event_data} =
             Connection.Protocol.decode_payload(:publish, payload)
 
           # send the event to handler
-          pid = Process.whereis(handler)
-          send(pid, {:publish, {client_id, event_type_id, key}, offset, event_data, message_id})
-
-          state
+          case handler.handle_publish(
+                 {client_id, event_type_id, key},
+                 offset,
+                 event_data,
+                 message_id
+               ) do
+            :ack ->
+              {:reply, :ok, state} = handle_call({:ack, message_id}, self(), state)
+              state
+              # todo: error handling
+              # :error ->
+              # send a nack
+              # maybe put the connection into an error state
+              # rescue ->
+              # nack
+              # maybe put the connection into an error state
+          end
       end
 
     {:noreply, new_state}
