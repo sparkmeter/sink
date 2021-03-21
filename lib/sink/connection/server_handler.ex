@@ -262,6 +262,14 @@ defmodule Sink.Connection.ServerHandler do
               # nack
               # maybe put the connection into an error state
           end
+
+        :ping ->
+          frame = Sink.Connection.Protocol.encode_frame(:pong)
+          :ok = @mod_transport.send(state.socket, frame)
+          state
+
+        :pong ->
+          state
       end
 
     {:noreply, new_state}

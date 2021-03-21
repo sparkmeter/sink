@@ -1,4 +1,16 @@
 defmodule Sink.Connection.Protocol do
+  def encode_frame(:ping) do
+    message_type_id = 5
+    message_id = 0
+    <<message_type_id::4, message_id::integer-size(12)>>
+  end
+
+  def encode_frame(:pong) do
+    message_type_id = 6
+    message_id = 0
+    <<message_type_id::4, message_id::integer-size(12)>>
+  end
+
   def encode_frame(message_type, message_id, payload) do
     message_type_id =
       case message_type do
@@ -17,6 +29,8 @@ defmodule Sink.Connection.Protocol do
     case message_type_id do
       3 -> {:ack, message_id}
       4 -> {:publish, message_id, payload}
+      5 -> :ping
+      6 -> :pong
     end
   end
 

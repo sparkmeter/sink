@@ -12,8 +12,14 @@ defmodule Sink.Connection.ProtocolTest do
     test "encodes a connect ack"
     @tag :skip
     test "encodes a graceful disconnect"
-    @tag :skip
-    test "encodes a ping"
+
+    test "encodes a ping" do
+      assert <<80, 0>> == Protocol.encode_frame(:ping)
+    end
+
+    test "encodes a pong" do
+      assert <<96, 0>> == Protocol.encode_frame(:pong)
+    end
 
     test "encodes a ack" do
       payload = <<1, 2>>
@@ -38,8 +44,14 @@ defmodule Sink.Connection.ProtocolTest do
     test "decodes a connect ack"
     @tag :skip
     test "decodes a graceful disconnect"
-    @tag :skip
-    test "decodes a ping"
+
+    test "decodes a ping" do
+      assert :ping == Protocol.decode_frame(<<80, 0>>)
+    end
+
+    test "decodes a pong" do
+      assert :pong == Protocol.decode_frame(<<96, 0>>)
+    end
 
     test "decodes a ack" do
       frame = <<48, 0>>

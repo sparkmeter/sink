@@ -157,5 +157,45 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert 101 = new_state.next_message_id
       assert false == ServerHandler.State.inflight?(new_state, ack_key)
     end
+
+    test "a ping returns a pong" do
+      encoded_message = Protocol.encode_frame(:ping)
+
+      # expect a pong
+      @mod_transport
+      |> expect(:send, fn 123, <<96, 0>> -> :ok end)
+
+      state = %ServerHandler.State{
+        client_id: "test-client",
+        socket: 123,
+        transport: __MODULE__,
+        peername: :fake,
+        handler: @handler,
+        ssl_opts: :fake,
+        next_message_id: 100,
+        start_time: System.monotonic_time()
+      }
+
+      assert {:noreply, new_state} =
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+    end
+
+    test "a pong does nothing (for now)" do
+      encoded_message = Protocol.encode_frame(:pong)
+
+      state = %ServerHandler.State{
+        client_id: "test-client",
+        socket: 123,
+        transport: __MODULE__,
+        peername: :fake,
+        handler: @handler,
+        ssl_opts: :fake,
+        next_message_id: 100,
+        start_time: System.monotonic_time()
+      }
+
+      assert {:noreply, new_state} =
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+    end
   end
 end

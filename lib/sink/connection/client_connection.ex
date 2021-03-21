@@ -110,6 +110,15 @@ defmodule Sink.Connection.ClientConnection do
           send(pid, {:publish, {event_type_id, key}, offset, event_data, message_id})
 
           state
+
+        :ping ->
+          frame = Connection.Protocol.encode_frame(:pong)
+          :ok = :ssl.send(state.socket, frame)
+
+          state
+
+        :pong ->
+          state
       end
 
     {:noreply, new_state}
