@@ -3,9 +3,24 @@
   "name": "system_config_event",
   "namespace": "io.slim",
   "fields": [
+    { "name": "client_id",
+      "type": "string"
+    },
     {
       "name": "nerves_hub_link_enabled",
       "type": "boolean"
+    },
+    {
+      "name": "aes_key",
+      "type": {
+        "type": "fixed",
+        "name": "aes_key_bin",
+        "size": 16
+      }
+    },
+    {
+      "name": "controller_id",
+      "type": "int"
     },
     {
       "name": "timestamp",

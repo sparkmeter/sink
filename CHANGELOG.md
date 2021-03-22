@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Mox for testing
 - Server processes will send the `sink_handler` a message when a connection goes up/down.
 - Adds ServerConnectionHandler behavior
+- Adds aes_key and controller_id to SystemConfig message
 
 
 ### Fixes

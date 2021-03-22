@@ -10,6 +10,7 @@ defmodule SlimTest do
   @portfolio_id "11111ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
   @tariff_id "0cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
   @user_id "8cb15ae7-3b9e-4135-ae3f-6d3ee79ea197" |> Ecto.UUID.dump() |> elem(1)
+  @base_station_id "springfield-station"
 
   describe "encode/decode events" do
     test "CloudCreditEvent (with optional fields)" do
@@ -242,14 +243,17 @@ defmodule SlimTest do
 
     test "SystemConfigEvent" do
       event = %Events.SystemConfigEvent{
+        client_id: @base_station_id,
         nerves_hub_link_enabled: true,
+        aes_key: Base.decode16!("00112233445566778899AABBCCDDEEFF"),
+        controller_id: 16,
         offset: 1,
         updated_by_id: @user_id,
         timestamp: 1_586_632_500
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
-      assert <<>> == key
+      assert @base_station_id == key
       assert event.offset == offset
       assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
     end

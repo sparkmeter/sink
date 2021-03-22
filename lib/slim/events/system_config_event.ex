@@ -1,9 +1,18 @@
 defmodule Slim.Events.SystemConfigEvent do
   @type t() :: %__MODULE__{}
 
-  defstruct [:nerves_hub_link_enabled, :offset, :updated_by_id, :timestamp]
+  defstruct [
+    # id is the base_station_id
+    :client_id,
+    :nerves_hub_link_enabled,
+    :aes_key,
+    :controller_id,
+    :offset,
+    :updated_by_id,
+    :timestamp
+  ]
 
-  def key(_system_config_event), do: <<>>
+  def key(system_config_event), do: system_config_event.client_id
 
   def offset(system_config_event), do: system_config_event.offset
 
