@@ -19,3 +19,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixes
 
 - If a client is connected and the same client attempts to connect this will kill the previous connection and boot that client.
+- Moved to encode_plain/decode_plain API of avrora and updated to upstream 0.18 [CH45912]

@@ -23,9 +23,8 @@ defmodule Sink.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:avrora,
-       git: "git@gitlab.com:sparkmeter/zappy/avrora.git",
-       branch: "fix/plain_binary_decoding_when_schema_is_given"},
+      {:avrora, "~> 0.18",
+       git: "git@gitlab.com:sparkmeter/zappy/avrora.git", branch: "fix/incorrect-typespec"},
       # {:ecto, "2.2.11"},
       {:ecto, "2.2.11", only: :test},
       {:erlavro, "~> 2.9.0"},

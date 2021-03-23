@@ -67,7 +67,7 @@ defmodule Slim do
     {:ok, event_data} =
       event
       |> Map.from_struct()
-      |> Avrora.encode(schema_name: get_schema_name(event_type), format: :plain)
+      |> Avrora.encode_plain(schema_name: get_schema_name(event_type))
 
     {:ok, event_type_id, key, offset, event_data}
   end
@@ -82,22 +82,18 @@ defmodule Slim do
       |> get_event_type()
       |> get_schema_name()
 
-    case Avrora.decode(event_data, schema_name: schema_name, format: :plain) do
-      {:ok, decoded} ->
-        event_type = get_event_type(event_type_id)
+    with {:ok, decoded} <- Avrora.decode_plain(event_data, schema_name: schema_name) do
+      event_type = get_event_type(event_type_id)
 
-        decoded_with_atom_keys = decode_with_atom_keys(decoded)
+      decoded_with_atom_keys = decode_with_atom_keys(decoded)
 
-        event =
-          event_type
-          |> struct(decoded_with_atom_keys)
-          |> event_type.set_key(key)
-          |> event_type.set_offset(offset)
+      event =
+        event_type
+        |> struct(decoded_with_atom_keys)
+        |> event_type.set_key(key)
+        |> event_type.set_offset(offset)
 
-        {:ok, event}
-
-      {:error, error} ->
-        {:error, error}
+      {:ok, event}
     end
   end
 
