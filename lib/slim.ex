@@ -23,36 +23,8 @@ defmodule Slim do
     256 => Events.SystemConfigEvent,
     257 => Events.UpdateFirmwareEvent
   }
-  @event_type_rev_map %{
-    Events.UserEvent => 0,
-    Events.TariffEvent => 1,
-    Events.MeterEvent => 2,
-    Events.CustomerMeterConfigEvent => 3,
-    Events.CustomerEvent => 4,
-    Events.MeterReadingEvent => 5,
-    Events.MeterConfigEvent => 6,
-    Events.MeterConfigAppliedEvent => 7,
-    Events.CustomerMeterBillEvent => 8,
-    Events.CloudCreditEvent => 9,
-    # Control Messages
-    Events.SystemConfigEvent => 256,
-    Events.UpdateFirmwareEvent => 257
-  }
-  @event_schema %{
-    Events.UserEvent => "io.slim.user_event",
-    Events.TariffEvent => "io.slim.tariff_event",
-    Events.MeterEvent => "io.slim.meter_event",
-    Events.CustomerMeterConfigEvent => "io.slim.customer_meter_config_event",
-    Events.CustomerEvent => "io.slim.customer_event",
-    Events.MeterReadingEvent => "io.slim.meter_reading_event",
-    Events.MeterConfigEvent => "io.slim.meter_config_event",
-    Events.MeterConfigAppliedEvent => "io.slim.meter_config_applied_event",
-    Events.CustomerMeterBillEvent => "io.slim.customer_meter_bill_event",
-    Events.CloudCreditEvent => "io.slim.cloud_credit_event",
-    # Control Messages
-    Events.SystemConfigEvent => "io.slim.system_config_event",
-    Events.UpdateFirmwareEvent => "io.slim.update_firmware_event"
-  }
+  @event_type_rev_map for {n, mod} <- @event_type_map, into: %{}, do: {mod, n}
+  @event_schema for {_n, mod} <- @event_type_map, into: %{}, do: {mod, mod.avro_schema()}
 
   def get_event_type(event_type_id), do: Map.fetch!(@event_type_map, event_type_id)
   def get_event_type_id(event_type), do: Map.fetch!(@event_type_rev_map, event_type)

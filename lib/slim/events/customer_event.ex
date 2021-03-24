@@ -1,4 +1,6 @@
 defmodule Slim.Events.CustomerEvent do
+  @behaviour Slim.Event
+
   defstruct id: nil,
             name: nil,
             portfolio_id: nil,
@@ -17,11 +19,18 @@ defmodule Slim.Events.CustomerEvent do
           timestamp: non_neg_integer()
         }
 
+  @impl true
+  def avro_schema(), do: "io.slim.customer_event"
+
+  @impl true
   def key(event), do: event.id
 
+  @impl true
   def offset(event), do: event.offset
 
+  @impl true
   def set_key(event, encoded_key), do: %__MODULE__{event | id: encoded_key}
 
+  @impl true
   def set_offset(event, encoded_offset), do: %__MODULE__{event | offset: encoded_offset}
 end
