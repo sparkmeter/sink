@@ -1,6 +1,6 @@
 {
   "type": "record",
-  "name": "customer_meter_transaction_event",
+  "name": "monthly_plan_transaction_event",
   "namespace": "io.slim",
   "fields": [
     {
@@ -31,7 +31,7 @@
           "type": "enum",
           "name": "type_data",
           "symbols": [
-            "monthly_plan",
+            "plan_start",
             "meter_reading"
           ]
         }

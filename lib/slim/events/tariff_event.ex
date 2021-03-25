@@ -2,8 +2,9 @@ defmodule Slim.Events.TariffEvent do
   @behaviour Slim.Event
 
   @type t() :: %__MODULE__{}
+  # todo @enforce_keys
 
-  defstruct [:id, :name, :rate, :load_limit, :offset, :updated_by_id, :timestamp]
+  defstruct [:id, :name, :rate, :load_limit, :offset, :updated_by_id, :timestamp, :monthly_plan]
 
   @impl true
   def avro_schema(), do: "io.slim.tariff_event"

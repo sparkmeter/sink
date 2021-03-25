@@ -95,7 +95,26 @@ defmodule SlimTest do
         amount: -1_000,
         balance: 1_000_000,
         timestamp: 1_586_632_500,
-        offset: 1
+        offset: 1,
+        type: "meter_reading"
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert event.customer_meter_config_id == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
+    test "CustomerMeterTransactionEvent (monthly plan)" do
+      event = %Events.CustomerMeterTransactionEvent{
+        customer_meter_config_id: @cm_config_id,
+        customer_meter_config_offset: 3,
+        meter_reading_offset: 2,
+        amount: -100_000,
+        balance: 1_000_000,
+        timestamp: 1_586_632_500,
+        offset: 1,
+        type: "monthly_plan"
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
@@ -241,6 +260,42 @@ defmodule SlimTest do
       assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
     end
 
+    test "MonthlyPlanTransactionEvent (purchasing a plan for the first time)" do
+      event = %Events.MonthlyPlanTransactionEvent{
+        customer_meter_config_id: @cm_config_id,
+        customer_meter_config_offset: 3,
+        meter_reading_offset: 2,
+        amount: 100_000,
+        balance: 1_000_000,
+        timestamp: 1_586_632_500,
+        offset: 1,
+        type: "plan_start"
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert event.customer_meter_config_id == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
+    test "MonthlyPlanTransactionEvent (billing for energy usage)" do
+      event = %Events.MonthlyPlanTransactionEvent{
+        customer_meter_config_id: @cm_config_id,
+        customer_meter_config_offset: 3,
+        meter_reading_offset: 2,
+        amount: -1_000,
+        balance: 1_000_000,
+        timestamp: 1_586_632_500,
+        offset: 1,
+        type: "meter_reading"
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert event.customer_meter_config_id == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
     test "SystemConfigEvent" do
       event = %Events.SystemConfigEvent{
         client_id: @base_station_id,
@@ -258,7 +313,7 @@ defmodule SlimTest do
       assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
     end
 
-    test "TariffEvent" do
+    test "TariffEvent (flat rate, no monthly plan)" do
       event = %Events.TariffEvent{
         id: @tariff_id,
         name: "Tariff 1",
@@ -267,6 +322,27 @@ defmodule SlimTest do
         offset: 1,
         updated_by_id: @user_id,
         timestamp: 1_586_632_500
+      }
+
+      assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)
+      assert event.id == key
+      assert event.offset == offset
+      assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
+    end
+
+    test "TariffEvent (flat rate, monthly plan)" do
+      event = %Events.TariffEvent{
+        id: @tariff_id,
+        name: "Tariff 1",
+        load_limit: 9_000,
+        rate: :erlang.float_to_binary(10.50),
+        offset: 1,
+        updated_by_id: @user_id,
+        timestamp: 1_586_632_500,
+        monthly_plan: %{
+          fixed_fee: :erlang.float_to_binary(1.0),
+          minimum_spend: :erlang.float_to_binary(3.0)
+        }
       }
 
       assert {:ok, event_type_id, key, offset, event_data} = Slim.encode_event(event)

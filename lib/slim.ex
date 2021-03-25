@@ -19,6 +19,7 @@ defmodule Slim do
     7 => Events.MeterConfigAppliedEvent,
     8 => Events.CustomerMeterTransactionEvent,
     9 => Events.CloudCreditEvent,
+    10 => Events.MonthlyPlanTransactionEvent,
     # Control Messages
     256 => Events.SystemConfigEvent,
     257 => Events.UpdateFirmwareEvent
@@ -36,12 +37,14 @@ defmodule Slim do
     key = event_type.key(event)
     offset = event_type.offset(event)
 
-    {:ok, event_data} =
+    decode_result =
       event
       |> Map.from_struct()
       |> Avrora.encode_plain(schema_name: get_schema_name(event_type))
 
-    {:ok, event_type_id, key, offset, event_data}
+    with {:ok, event_data} <- decode_result do
+      {:ok, event_type_id, key, offset, event_data}
+    end
   end
 
   def decode_event({_event_type_id, _key}, _offset, nil) do
@@ -97,7 +100,8 @@ defmodule Slim do
         "system_config_event.avsc",
         "update_firmware_event.avsc",
         "customer_meter_transaction_event.avsc",
-        "cloud_credit_event.avsc"
+        "cloud_credit_event.avsc",
+        "monthly_plan_transaction_event.avsc"
       ]
       |> Enum.map(&Path.join([schema_dir, &1]))
       |> Enum.map(&parse_schema/1)

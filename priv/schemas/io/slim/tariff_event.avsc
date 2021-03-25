@@ -31,6 +31,36 @@
     {
       "name": "timestamp",
       "type": "int"
+    },
+    {
+      "name": "monthly_plan",
+      "type": [
+        "null",
+        {
+          "type": "record",
+          "name": "monthly_plan_info",
+          "fields": [
+            {
+              "name": "fixed_fee",
+              "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 4,
+                "scale": 2
+              }
+            },
+            {
+              "name": "minimum_spend",
+              "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 4,
+                "scale": 2
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

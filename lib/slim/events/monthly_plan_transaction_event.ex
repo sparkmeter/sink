@@ -1,4 +1,4 @@
-defmodule Slim.Events.CustomerMeterTransactionEvent do
+defmodule Slim.Events.MonthlyPlanTransactionEvent do
   @behaviour Slim.Event
 
   @type t() :: %__MODULE__{}
@@ -11,11 +11,12 @@ defmodule Slim.Events.CustomerMeterTransactionEvent do
     :balance,
     :timestamp,
     :offset,
-    :type
+    :type,
+    :last_renewal
   ]
 
   @impl true
-  def avro_schema(), do: "io.slim.customer_meter_transaction_event"
+  def avro_schema(), do: "io.slim.monthly_plan_transaction_event"
 
   @impl true
   def key(event), do: event.customer_meter_config_id
