@@ -3,7 +3,10 @@ defmodule Sink.Connection.ClientConnection do
   Manages the socket connection and data flow with a Sink Server.
   """
   use GenServer
+  require Logger
   alias Sink.Connection
+
+  @mod_transport Application.compile_env!(:sink, :transport)
 
   defmodule State do
     defstruct [
@@ -68,9 +71,9 @@ defmodule Sink.Connection.ClientConnection do
 
   def handle_call({:ack, message_id}, _from, state) do
     frame = Connection.Protocol.encode_frame(:ack, message_id, <<>>)
-    :ok = :ssl.send(state.socket, frame)
+    result = @mod_transport.send(state.socket, frame)
 
-    {:reply, :ok, state}
+    {:reply, result, state}
   end
 
   def handle_call({:publish, payload, ack_key}, {from, _}, state) do
@@ -79,7 +82,7 @@ defmodule Sink.Connection.ClientConnection do
     else
       encoded = Connection.Protocol.encode_frame(:publish, state.next_message_id, payload)
 
-      :ok = :ssl.send(state.socket, encoded)
+      :ok = @mod_transport.send(state.socket, encoded)
       {:reply, :ok, State.put_inflight(state, {from, ack_key})}
     end
   end
@@ -95,25 +98,45 @@ defmodule Sink.Connection.ClientConnection do
       |> Connection.Protocol.decode_frame()
       |> case do
         {:ack, message_id} ->
-          {ack_handler, ack_key} = State.find_inflight(state, message_id)
+          {ack_from, ack_key} = State.find_inflight(state, message_id)
 
-          send(ack_handler, {:ack, ack_key})
-
-          State.remove_inflight(state, message_id)
+          case handler.handle_ack(ack_from, ack_key) do
+            :ok ->
+              State.remove_inflight(state, message_id)
+              # todo: error handling
+              # :error ->
+              # what to do if we can't ack?
+              # rescue ->
+              # how do we handle a failed ack?
+          end
 
         {:publish, message_id, payload} ->
           {event_type_id, key, offset, event_data} =
             Connection.Protocol.decode_payload(:publish, payload)
 
-          # send the event to handler
-          pid = Process.whereis(handler)
-          send(pid, {:publish, {event_type_id, key}, offset, event_data, message_id})
-
-          state
+          try do
+            case handler.handle_publish({event_type_id, key}, offset, event_data, message_id) do
+              :ack ->
+                {:reply, :ok, state} = handle_call({:ack, message_id}, self(), state)
+                state
+                # todo: error handling
+                # :error ->
+                # send a nack
+                # maybe put the connection into an error state
+                # rescue ->
+                # nack
+                # maybe put the connection into an error state
+            end
+          rescue
+            e ->
+              formatted = Exception.format(:error, e, __STACKTRACE__)
+              Logger.error(formatted)
+              state
+          end
 
         :ping ->
           frame = Connection.Protocol.encode_frame(:pong)
-          :ok = :ssl.send(state.socket, frame)
+          :ok = @mod_transport.send(state.socket, frame)
 
           state
 
