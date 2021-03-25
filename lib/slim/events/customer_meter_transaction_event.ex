@@ -1,4 +1,4 @@
-defmodule Slim.Events.CustomerMeterBillEvent do
+defmodule Slim.Events.CustomerMeterTransactionEvent do
   @behaviour Slim.Event
 
   @type t() :: %__MODULE__{}
@@ -14,7 +14,7 @@ defmodule Slim.Events.CustomerMeterBillEvent do
   ]
 
   @impl true
-  def avro_schema(), do: "io.slim.customer_meter_bill_event"
+  def avro_schema(), do: "io.slim.customer_meter_transaction_event"
 
   @impl true
   def key(event), do: event.customer_meter_config_id

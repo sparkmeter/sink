@@ -87,12 +87,12 @@ defmodule SlimTest do
       assert {:ok, event} == Slim.decode_event({event_type_id, key}, offset, event_data)
     end
 
-    test "CustomerMeterBillEvent" do
-      event = %Events.CustomerMeterBillEvent{
+    test "CustomerMeterTransactionEvent (meter reading)" do
+      event = %Events.CustomerMeterTransactionEvent{
         customer_meter_config_id: @cm_config_id,
         customer_meter_config_offset: 3,
         meter_reading_offset: 2,
-        amount: 1_000,
+        amount: -1_000,
         balance: 1_000_000,
         timestamp: 1_586_632_500,
         offset: 1

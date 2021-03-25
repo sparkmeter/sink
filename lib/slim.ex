@@ -17,7 +17,7 @@ defmodule Slim do
     5 => Events.MeterReadingEvent,
     6 => Events.MeterConfigEvent,
     7 => Events.MeterConfigAppliedEvent,
-    8 => Events.CustomerMeterBillEvent,
+    8 => Events.CustomerMeterTransactionEvent,
     9 => Events.CloudCreditEvent,
     # Control Messages
     256 => Events.SystemConfigEvent,
@@ -82,23 +82,24 @@ defmodule Slim do
 
   # REMOVE EVERYTHING BELOW THIS LINE ONCE TIDAL IS REPLACED
   def register_schemas do
-    schema_dir = Path.join([to_string(:code.priv_dir(:sink)), "schemas", "io", "slim"])
+    schema_dir = Application.app_dir(:sink, "priv/schemas/io/slim")
 
     _ =
       [
-        Path.join([schema_dir, "user_event.avsc"]),
-        Path.join([schema_dir, "tariff_event.avsc"]),
-        Path.join([schema_dir, "meter_event.avsc"]),
-        Path.join([schema_dir, "customer_meter_config_event.avsc"]),
-        Path.join([schema_dir, "customer_event.avsc"]),
-        Path.join([schema_dir, "meter_reading_event.avsc"]),
-        Path.join([schema_dir, "meter_config_event.avsc"]),
-        Path.join([schema_dir, "meter_config_applied_event.avsc"]),
-        Path.join([schema_dir, "system_config_event.avsc"]),
-        Path.join([schema_dir, "update_firmware_event.avsc"]),
-        Path.join([schema_dir, "customer_meter_bill_event.avsc"]),
-        Path.join([schema_dir, "cloud_credit_event.avsc"])
+        "user_event.avsc",
+        "tariff_event.avsc",
+        "meter_event.avsc",
+        "customer_meter_config_event.avsc",
+        "customer_event.avsc",
+        "meter_reading_event.avsc",
+        "meter_config_event.avsc",
+        "meter_config_applied_event.avsc",
+        "system_config_event.avsc",
+        "update_firmware_event.avsc",
+        "customer_meter_transaction_event.avsc",
+        "cloud_credit_event.avsc"
       ]
+      |> Enum.map(&Path.join([schema_dir, &1]))
       |> Enum.map(&parse_schema/1)
       |> Enum.map(&register_schema/1)
 

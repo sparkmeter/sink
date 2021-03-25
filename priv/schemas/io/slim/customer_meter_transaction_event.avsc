@@ -1,6 +1,6 @@
 {
   "type": "record",
-  "name": "customer_meter_bill_event",
+  "name": "customer_meter_transaction_event",
   "namespace": "io.slim",
   "fields": [
     {
