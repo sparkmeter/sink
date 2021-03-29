@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Changed
 - Update CustomerMeterBill for amount to be negative for deduction[CH48088]
 - Update CustomerMeterBill for monthly plans and rename to CustomerMeterTransaction[CH48073]
+- Removed Slim
 
 
 ### Fixes
