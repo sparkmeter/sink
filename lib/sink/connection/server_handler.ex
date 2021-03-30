@@ -21,9 +21,29 @@ defmodule Sink.Connection.ServerHandler do
       :handler,
       :next_message_id,
       :ssl_opts,
+      :last_received_at,
+      :keepalive_interval,
       :start_time,
       inflight: %{}
     ]
+
+    @default_keepalive_interval 60_000
+
+    def init(client_id, socket, transport, peername, handler, ssl_opts, now) do
+      %State{
+        client_id: client_id,
+        socket: socket,
+        transport: transport,
+        peername: peername,
+        handler: handler,
+        ssl_opts: ssl_opts,
+        next_message_id: Sink.Connection.next_message_id(nil),
+        start_time: now,
+        last_received_at: now,
+        keepalive_interval:
+          Application.get_env(:sink, :keepalive_interval, @default_keepalive_interval)
+      }
+    end
 
     def put_inflight(
           %State{inflight: inflight, next_message_id: next_message_id} = state,
@@ -44,6 +64,14 @@ defmodule Sink.Connection.ServerHandler do
 
     def remove_inflight(%State{inflight: inflight} = state, message_id) do
       Map.put(state, :inflight, Map.delete(inflight, message_id))
+    end
+
+    def log_received(%State{} = state, now) do
+      %State{state | last_received_at: now}
+    end
+
+    def alive?(%State{} = state, now) do
+      state.keepalive_interval * 1.5 > now - state.last_received_at
     end
   end
 
@@ -155,19 +183,13 @@ defmodule Sink.Connection.ServerHandler do
 
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
 
+        state = State.init(client_id, socket, transport, peername, handler, ssl_opts, now())
+        schedule_check_keepalive(state.keepalive_interval)
+
         :gen_server.enter_loop(
           __MODULE__,
           [],
-          %State{
-            client_id: client_id,
-            socket: socket,
-            transport: transport,
-            peername: peername,
-            handler: handler,
-            ssl_opts: ssl_opts,
-            next_message_id: Connection.next_message_id(nil),
-            start_time: System.monotonic_time()
-          },
+          state,
           via_tuple(client_id)
         )
 
@@ -213,6 +235,18 @@ defmodule Sink.Connection.ServerHandler do
 
       :ok = @mod_transport.send(state.socket, encoded)
       {:reply, :ok, State.put_inflight(state, {from, ack_key})}
+    end
+  end
+
+  # keepalive
+
+  def handle_info(:tick_check_keepalive, state) do
+    schedule_check_keepalive(state.keepalive_interval)
+
+    if State.alive?(state, now()) do
+      {:noreply, state}
+    else
+      {:stop, :normal, state}
     end
   end
 
@@ -271,6 +305,7 @@ defmodule Sink.Connection.ServerHandler do
         :pong ->
           state
       end
+      |> State.log_received(now())
 
     {:noreply, new_state}
   end
@@ -319,5 +354,13 @@ defmodule Sink.Connection.ServerHandler do
         :timer.sleep(10)
         register_when_clear(client_id)
     end
+  end
+
+  defp now do
+    System.monotonic_time(:millisecond)
+  end
+
+  defp schedule_check_keepalive(keepalive_interval) do
+    Process.send_after(self(), :tick_check_keepalive, div(keepalive_interval, 2))
   end
 end

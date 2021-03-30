@@ -14,6 +14,14 @@ defmodule Sink.Connection.ClientConnectionTest do
 
   @mod_transport Sink.Connection.Transport.SSLMock
   @handler Sink.Connection.ClientConnectionHandlerMock
+  @sample_state %ClientConnection.State{
+    socket: 123,
+    peername: :fake,
+    handler: @handler,
+    next_message_id: 100,
+    last_sent_at: 0,
+    last_received_at: 0
+  }
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -39,17 +47,12 @@ defmodule Sink.Connection.ClientConnectionTest do
         :ack
       end)
 
-      state = %ClientConnection.State{
-        socket: 123,
-        peername: :fake,
-        handler: @handler,
-        next_message_id: 100
-      }
-
       assert {:noreply, new_state} =
-               ClientConnection.handle_info({:ssl, :fake, encoded_message}, state)
+               ClientConnection.handle_info({:ssl, :fake, encoded_message}, @sample_state)
 
-      assert new_state == state
+      assert 100 == new_state.next_message_id
+      assert 0 != new_state.last_sent_at
+      assert 0 != new_state.last_received_at
     end
 
     test "if the SinkHandler raises an error we don't do anything for now (we will send a NACK once they're implemented)" do
@@ -74,18 +77,16 @@ defmodule Sink.Connection.ClientConnectionTest do
         raise(ArgumentError, message: "boom")
       end)
 
-      state = %ClientConnection.State{
-        socket: 123,
-        peername: :fake,
-        handler: @handler,
-        next_message_id: 100
-      }
-
       assert capture_log(fn ->
                assert {:noreply, new_state} =
-                        ClientConnection.handle_info({:ssl, :fake, encoded_message}, state)
+                        ClientConnection.handle_info(
+                          {:ssl, :fake, encoded_message},
+                          @sample_state
+                        )
 
-               assert new_state == state
+               assert 100 == new_state.next_message_id
+               assert 0 == new_state.last_sent_at
+               assert 0 != new_state.last_received_at
              end) =~ "boom"
     end
 
@@ -105,52 +106,106 @@ defmodule Sink.Connection.ClientConnectionTest do
         :ok
       end)
 
-      state =
-        %ClientConnection.State{
-          socket: 123,
-          peername: :fake,
-          handler: @handler,
-          next_message_id: 100
-        }
-        |> ClientConnection.State.put_inflight({self(), ack_key})
+      state = ClientConnection.State.put_inflight(@sample_state, {self(), ack_key})
 
       assert {:noreply, new_state} =
                ClientConnection.handle_info({:ssl, :fake, encoded_message}, state)
 
       assert 101 = new_state.next_message_id
       assert false == ClientConnection.State.inflight?(new_state, ack_key)
+      assert 0 == new_state.last_sent_at
+      assert 0 != new_state.last_received_at
     end
 
-    test "a ping returns a pong" do
+    test "a ping returns a pong and increases last_sent_at" do
       encoded_message = Protocol.encode_frame(:ping)
 
       # expect a pong
       @mod_transport
       |> expect(:send, fn 123, <<96, 0>> -> :ok end)
 
-      state = %ClientConnection.State{
-        socket: 123,
-        peername: :fake,
-        handler: @handler,
-        next_message_id: 100
-      }
-
       assert {:noreply, new_state} =
-               ClientConnection.handle_info({:ssl, :fake, encoded_message}, state)
+               ClientConnection.handle_info({:ssl, :fake, encoded_message}, @sample_state)
+
+      assert assert 0 != new_state.last_sent_at
+      assert assert 0 != new_state.last_received_at
     end
 
-    test "a pong does nothing (for now)" do
+    test "a pong increases last_received_at" do
       encoded_message = Protocol.encode_frame(:pong)
 
+      assert {:noreply, new_state} =
+               ClientConnection.handle_info({:ssl, :fake, encoded_message}, @sample_state)
+
+      assert 0 == new_state.last_sent_at
+      assert 0 != new_state.last_received_at
+    end
+  end
+
+  describe "checking if a we should ping" do
+    test "should not ping if we have received something since keepalive" do
       state = %ClientConnection.State{
-        socket: 123,
-        peername: :fake,
-        handler: @handler,
-        next_message_id: 100
+        @sample_state
+        | last_sent_at: 1_000_001,
+          last_received_at: 1_000_000,
+          keepalive_interval: 60_000
       }
 
-      assert {:noreply, new_state} =
-               ClientConnection.handle_info({:ssl, :fake, encoded_message}, state)
+      now = 1_060_000
+
+      assert false == ClientConnection.State.should_send_ping?(state, now)
+    end
+
+    test "should not ping if we haven't received anything but have pinged since keepalive" do
+      state = %ClientConnection.State{
+        @sample_state
+        | last_sent_at: 1_000_001,
+          last_received_at: 1_000_000,
+          keepalive_interval: 60_000
+      }
+
+      now = 1_060_000
+
+      assert false == ClientConnection.State.should_send_ping?(state, now)
+    end
+
+    test "should ping if we haven't received or sent anything since keepalive" do
+      state = %ClientConnection.State{
+        @sample_state
+        | last_sent_at: 1_000_000,
+          last_received_at: 1_000_000,
+          keepalive_interval: 60_000
+      }
+
+      now = 1_060_000
+
+      assert true == ClientConnection.State.should_send_ping?(state, now)
+    end
+  end
+
+  describe "checking if a connection is alive" do
+    test "should be alive if we have received a message in a reasonable amount of time" do
+      state = %ClientConnection.State{
+        @sample_state
+        | last_received_at: 1_000_000,
+          keepalive_interval: 60_000
+      }
+
+      now = 1_089_999
+
+      assert true == ClientConnection.State.alive?(state, now)
+    end
+
+    test "should be dead if we have not received a message in a reasonable amount of time" do
+      state = %ClientConnection.State{
+        @sample_state
+        | last_received_at: 1_000_000,
+          keepalive_interval: 60_000
+      }
+
+      now = 1_090_000
+
+      assert false == ClientConnection.State.alive?(state, now)
     end
   end
 end

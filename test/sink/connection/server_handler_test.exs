@@ -13,6 +13,17 @@ defmodule Sink.Connection.ServerHandlerTest do
 
   @mod_transport Sink.Connection.Transport.SSLMock
   @handler Sink.Connection.ServerConnectionHandlerMock
+  @sample_state %ServerHandler.State{
+    client_id: "test-client",
+    socket: 123,
+    transport: __MODULE__,
+    peername: :fake,
+    handler: @handler,
+    ssl_opts: :fake,
+    next_message_id: 100,
+    start_time: 0,
+    last_received_at: 0
+  }
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -105,21 +116,11 @@ defmodule Sink.Connection.ServerHandlerTest do
         :ack
       end)
 
-      state = %ServerHandler.State{
-        client_id: "test-client",
-        socket: 123,
-        transport: __MODULE__,
-        peername: :fake,
-        handler: @handler,
-        ssl_opts: :fake,
-        next_message_id: 100,
-        start_time: System.monotonic_time()
-      }
-
       assert {:noreply, new_state} =
-               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, @sample_state)
 
-      assert new_state == state
+      assert 100 = new_state.next_message_id
+      assert 0 != new_state.last_received_at
     end
 
     test "an ack with good data decodes and forwards to handler" do
@@ -138,18 +139,7 @@ defmodule Sink.Connection.ServerHandlerTest do
         :ok
       end)
 
-      state =
-        %ServerHandler.State{
-          client_id: "test-client",
-          socket: 123,
-          transport: __MODULE__,
-          peername: :fake,
-          handler: @handler,
-          ssl_opts: :fake,
-          next_message_id: 100,
-          start_time: System.monotonic_time()
-        }
-        |> ServerHandler.State.put_inflight({self(), ack_key})
+      state = ServerHandler.State.put_inflight(@sample_state, {self(), ack_key})
 
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
@@ -165,37 +155,41 @@ defmodule Sink.Connection.ServerHandlerTest do
       @mod_transport
       |> expect(:send, fn 123, <<96, 0>> -> :ok end)
 
-      state = %ServerHandler.State{
-        client_id: "test-client",
-        socket: 123,
-        transport: __MODULE__,
-        peername: :fake,
-        handler: @handler,
-        ssl_opts: :fake,
-        next_message_id: 100,
-        start_time: System.monotonic_time()
-      }
-
       assert {:noreply, new_state} =
-               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, @sample_state)
     end
 
     test "a pong does nothing (for now)" do
       encoded_message = Protocol.encode_frame(:pong)
 
+      assert {:noreply, new_state} =
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, @sample_state)
+    end
+  end
+
+  describe "checking if a connection is alive" do
+    test "should be alive if we have received a message in a reasonable amount of time" do
       state = %ServerHandler.State{
-        client_id: "test-client",
-        socket: 123,
-        transport: __MODULE__,
-        peername: :fake,
-        handler: @handler,
-        ssl_opts: :fake,
-        next_message_id: 100,
-        start_time: System.monotonic_time()
+        @sample_state
+        | last_received_at: 1_000_000,
+          keepalive_interval: 60_000
       }
 
-      assert {:noreply, new_state} =
-               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+      now = 1_089_999
+
+      assert true == ServerHandler.State.alive?(state, now)
+    end
+
+    test "should be dead if we have not received a message in a reasonable amount of time" do
+      state = %ServerHandler.State{
+        @sample_state
+        | last_received_at: 1_000_000,
+          keepalive_interval: 60_000
+      }
+
+      now = 1_090_000
+
+      assert false == ServerHandler.State.alive?(state, now)
     end
   end
 end
