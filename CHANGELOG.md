@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.0] - 2021-04-03
+### Added
+- Sink Client will send a ping if connection is quiet for `keepalive_interval`. [CH47748]
+- Sink Client and Server will disconnect if connection is exceeds keepalive cutoff threshold. [CH47748]
+- Added `check_dupe` method to Ecto EventLogs [CH47016]
+
 ## [0.4.0] - 2021-03-28
 
 ### Added

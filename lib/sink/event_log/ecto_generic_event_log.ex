@@ -5,6 +5,19 @@ defmodule Sink.EventLog.EctoGenericEventLog do
   import Ecto.Query, only: [from: 2]
   @repo Application.fetch_env!(:sink, :ecto_repo)
 
+  @doc """
+  Check the EventLog to see if we have the event and the event_data matches.
+
+  a `true` means it is a duplicate.
+  """
+  def check_dupe(event_log, {event_type_id, key}, offset, event_data) do
+    case get(event_log, {event_type_id, key}, offset) do
+      nil -> {:ok, false}
+      ^event_data -> {:ok, true}
+      mismatch_data -> {:error, :data_mismatch, mismatch_data}
+    end
+  end
+
   def get(event_log, {event_type_id, key}, offset) do
     @repo.get_by(event_log,
       event_type_id: event_type_id,

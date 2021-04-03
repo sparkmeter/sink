@@ -35,4 +35,43 @@ defmodule Sink.EventLog.EctoClientEventLogTest do
                TestEctoClientEventLog.get_latest({@client_id, @event_type_id, @event_key})
     end
   end
+
+  describe "check_dupe" do
+    test "is {:ok, nil} for a record that doesn't exist" do
+      assert {:ok, false} =
+               TestEctoClientEventLog.check_dupe(
+                 {@client_id, @event_type_id, @event_key},
+                 1,
+                 <<2>>
+               )
+    end
+
+    test "is {:ok, :dupe} for a record that exists" do
+      assert :ok =
+               TestEctoClientEventLog.log(
+                 {@client_id, @event_type_id, @event_key},
+                 1,
+                 @event_data
+               )
+
+      assert {:ok, true} =
+               TestEctoClientEventLog.check_dupe(
+                 {@client_id, @event_type_id, @event_key},
+                 1,
+                 @event_data
+               )
+    end
+
+    test "is {:error, :data_mismatch, _data} for a record that exists" do
+      assert :ok =
+               TestEctoClientEventLog.log(
+                 {@client_id, @event_type_id, @event_key},
+                 1,
+                 @event_data
+               )
+
+      assert {:error, :data_mismatch, @event_data} =
+               TestEctoClientEventLog.check_dupe({@client_id, @event_type_id, @event_key}, 1, 2)
+    end
+  end
 end

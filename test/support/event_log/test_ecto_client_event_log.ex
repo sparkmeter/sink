@@ -13,6 +13,11 @@ defmodule Sink.EventLog.TestEctoClientEventLog do
   end
 
   # @impl true
+  def check_dupe({client_id, event_type_id, key}, offset, event_data) do
+    EctoClientEventLog.check_dupe(__MODULE__, {client_id, event_type_id, key}, offset, event_data)
+  end
+
+  # @impl true
   def get_latest({client_id, event_type_id, key}) do
     EctoClientEventLog.get_latest(__MODULE__, {client_id, event_type_id, key})
   end
