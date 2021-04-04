@@ -7,7 +7,7 @@ defmodule Sink.Connection.ServerHandlerTest do
   """
   use ExUnit.Case, async: false
   import Mox
-  alias Sink.Connection.{Protocol, ServerHandler}
+  alias Sink.Connection.{Inflight, Protocol, ServerHandler, Stats}
 
   def setopts(_socket, _opts), do: :ok
 
@@ -20,9 +20,15 @@ defmodule Sink.Connection.ServerHandlerTest do
     peername: :fake,
     handler: @handler,
     ssl_opts: :fake,
-    next_message_id: 100,
-    start_time: 0,
-    last_received_at: 0
+    inflight: %Inflight{
+      next_message_id: 100
+    },
+    stats: %Stats{
+      last_sent_at: 0,
+      last_received_at: 0,
+      keepalive_interval: 60_000,
+      start_time: 0
+    }
   }
 
   setup :set_mox_from_context
@@ -95,8 +101,8 @@ defmodule Sink.Connection.ServerHandlerTest do
     end
   end
 
-  describe "receiving" do
-    test "a publish with good data decodes and forwards to handler, then acks" do
+  describe "receiving (publish)" do
+    test "with good data decodes and forwards to handler, then acks" do
       event_type_id = 1
       key = <<1, 2>>
       offset = 42
@@ -119,36 +125,37 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, @sample_state)
 
-      assert 100 = new_state.next_message_id
-      assert 0 != new_state.last_received_at
+      assert 100 = new_state.inflight.next_message_id
+      assert 0 != new_state.stats.last_received_at
     end
+  end
 
-    test "an ack with good data decodes and forwards to handler" do
+  describe "receiving (ack)" do
+    test "with good data decodes and forwards to handler" do
       event_type_id = 1
       key = <<1, 2>>
       offset = 42
-      message_id = 1234
       ack_key = {event_type_id, key, offset}
 
-      payload = Protocol.encode_payload(:ack, 1, message_id)
-      encoded_message = Protocol.encode_frame(:ack, 100, payload)
-      my_pid = self()
+      encoded_message = Protocol.encode_frame(:ack, 100)
 
       @handler
-      |> expect(:handle_ack, 1, fn ^my_pid, "test-client", ^ack_key ->
+      |> expect(:handle_ack, fn "test-client", ^ack_key ->
         :ok
       end)
 
-      state = ServerHandler.State.put_inflight(@sample_state, {self(), ack_key})
+      state = ServerHandler.State.put_inflight(@sample_state, ack_key)
 
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
 
-      assert 101 = new_state.next_message_id
+      assert 101 = new_state.inflight.next_message_id
       assert false == ServerHandler.State.inflight?(new_state, ack_key)
     end
+  end
 
-    test "a ping returns a pong" do
+  describe "receiving (ping)" do
+    test "returns a pong" do
       encoded_message = Protocol.encode_frame(:ping)
 
       # expect a pong
@@ -158,38 +165,14 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, @sample_state)
     end
+  end
 
-    test "a pong does nothing (for now)" do
+  describe "receiving (pong)" do
+    test "nothing (for now)" do
       encoded_message = Protocol.encode_frame(:pong)
 
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, @sample_state)
-    end
-  end
-
-  describe "checking if a connection is alive" do
-    test "should be alive if we have received a message in a reasonable amount of time" do
-      state = %ServerHandler.State{
-        @sample_state
-        | last_received_at: 1_000_000,
-          keepalive_interval: 60_000
-      }
-
-      now = 1_089_999
-
-      assert true == ServerHandler.State.alive?(state, now)
-    end
-
-    test "should be dead if we have not received a message in a reasonable amount of time" do
-      state = %ServerHandler.State{
-        @sample_state
-        | last_received_at: 1_000_000,
-          keepalive_interval: 60_000
-      }
-
-      now = 1_090_000
-
-      assert false == ServerHandler.State.alive?(state, now)
     end
   end
 end

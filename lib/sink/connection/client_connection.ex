@@ -9,87 +9,55 @@ defmodule Sink.Connection.ClientConnection do
   @mod_transport Application.compile_env!(:sink, :transport)
 
   defmodule State do
+    alias Sink.Connection.{Inflight, Stats}
+
     defstruct [
       :socket,
       :peername,
-      :next_message_id,
       :handler,
-      :last_sent_at,
-      :last_received_at,
-      :start_time,
-      :keepalive_interval,
-      inflight: %{}
+      :stats,
+      :inflight
     ]
-
-    @default_keepalive_interval 60_000
 
     def init(socket, handler, now) do
       %State{
         socket: socket,
-        next_message_id: Connection.next_message_id(nil),
         handler: handler,
-        last_sent_at: now,
-        last_received_at: now,
-        start_time: now,
-        keepalive_interval:
-          Application.get_env(:sink, :keepalive_interval, @default_keepalive_interval)
+        stats: Stats.init(now),
+        inflight: Inflight.init()
       }
     end
 
-    def put_inflight(
-          %State{inflight: inflight, next_message_id: next_message_id} = state,
-          {ack_handler, ack_key}
-        ) do
-      state
-      |> Map.put(:inflight, Map.put(inflight, next_message_id, {ack_handler, ack_key}))
-      |> Map.put(:next_message_id, Connection.next_message_id(next_message_id))
+    def put_inflight(%State{} = state, ack_key) do
+      %State{state | inflight: Inflight.put_inflight(state.inflight, ack_key)}
     end
 
-    def find_inflight(%State{inflight: inflight}, message_id), do: inflight[message_id]
-
-    def inflight?(%State{inflight: inflight}, ack_key) do
-      inflight
-      |> Map.values()
-      |> Enum.any?(fn {_, key} -> key == ack_key end)
+    def find_inflight(%State{} = state, message_id) do
+      Inflight.find_inflight(state.inflight, message_id)
     end
 
-    def remove_inflight(%State{inflight: inflight} = state, message_id) do
-      Map.put(state, :inflight, Map.delete(inflight, message_id))
+    def inflight?(%State{} = state, ack_key) do
+      Inflight.inflight?(state.inflight, ack_key)
+    end
+
+    def remove_inflight(%State{} = state, message_id) do
+      %State{state | inflight: Inflight.remove_inflight(state.inflight, message_id)}
     end
 
     def log_sent(%State{} = state, now) do
-      %State{state | last_sent_at: now}
+      %State{state | stats: Stats.log_sent(state.stats, now)}
     end
 
     def log_received(%State{} = state, now) do
-      %State{state | last_received_at: now}
+      %State{state | stats: Stats.log_received(state.stats, now)}
     end
 
-    @doc """
-    If we haven't sent or received a message within the keepalive timeframe, we should send a ping
-
-    https://www.hivemq.com/blog/mqtt-essentials-part-10-alive-client-take-over/
-
-    Inspired by MQTT. Client should be regularly sending and receiving data. If no
-    actual message is sent within the keepalive timefame, a PING will be sent.
-    """
-    def should_send_ping?(
-          %State{} = state,
-          now
-        ) do
-      cond do
-        state.keepalive_interval > now - state.last_sent_at -> false
-        state.keepalive_interval > now - state.last_received_at -> false
-        true -> true
-      end
+    def should_send_ping?(%State{} = state, now) do
+      Stats.should_send_ping?(state.stats, now)
     end
 
-    @doc """
-    If the we haven't received a message in 1.5x keepalive_interval we probably don't have
-    a connection
-    """
     def alive?(%State{} = state, now) do
-      state.keepalive_interval * 1.5 > now - state.last_received_at
+      Stats.alive?(state.stats, now)
     end
   end
 
@@ -101,8 +69,8 @@ defmodule Sink.Connection.ClientConnection do
 
   def init(socket: socket, handler: handler) do
     state = State.init(socket, handler, now())
-    schedule_maybe_ping(state.keepalive_interval)
-    schedule_check_keepalive(state.keepalive_interval)
+    schedule_maybe_ping(state.stats.keepalive_interval)
+    schedule_check_keepalive(state.stats.keepalive_interval)
 
     {:ok, state}
   end
@@ -118,23 +86,24 @@ defmodule Sink.Connection.ClientConnection do
   # Server callbacks
 
   def handle_call({:ack, message_id}, _from, state) do
-    frame = Connection.Protocol.encode_frame(:ack, message_id, <<>>)
+    frame = Connection.Protocol.encode_frame(:ack, message_id)
     result = @mod_transport.send(state.socket, frame)
 
     {:reply, result, state}
   end
 
-  def handle_call({:publish, payload, ack_key}, {from, _}, state) do
+  def handle_call({:publish, payload, ack_key}, _, state) do
     if State.inflight?(state, ack_key) do
       {:reply, {:error, :inflight}, state}
     else
-      encoded = Connection.Protocol.encode_frame(:publish, state.next_message_id, payload)
+      encoded =
+        Connection.Protocol.encode_frame(:publish, state.inflight.next_message_id, payload)
 
       :ok = @mod_transport.send(state.socket, encoded)
 
       new_state =
         state
-        |> State.put_inflight({from, ack_key})
+        |> State.put_inflight(ack_key)
         |> State.log_sent(now())
 
       {:reply, :ok, new_state}
@@ -144,7 +113,7 @@ defmodule Sink.Connection.ClientConnection do
   # keepalive
 
   def handle_info(:tick_maybe_send_ping, state) do
-    schedule_maybe_ping(state.keepalive_interval)
+    schedule_maybe_ping(state.stats.keepalive_interval)
 
     if State.should_send_ping?(state, now()) do
       frame = Connection.Protocol.encode_frame(:ping)
@@ -177,9 +146,9 @@ defmodule Sink.Connection.ClientConnection do
       |> Connection.Protocol.decode_frame()
       |> case do
         {:ack, message_id} ->
-          {ack_from, ack_key} = State.find_inflight(state, message_id)
+          ack_key = State.find_inflight(state, message_id)
 
-          case handler.handle_ack(ack_from, ack_key) do
+          case handler.handle_ack(ack_key) do
             :ok ->
               State.remove_inflight(state, message_id)
               # todo: error handling

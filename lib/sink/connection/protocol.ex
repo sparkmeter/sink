@@ -1,4 +1,16 @@
 defmodule Sink.Connection.Protocol do
+  def encode_frame(:ack, message_id) do
+    message_type_id = 3
+    <<message_type_id::4, message_id::integer-size(12)>>
+  end
+
+  def encode_frame(:publish, message_id, payload) do
+    message_type_id = 4
+    header = <<message_type_id::4, message_id::integer-size(12)>>
+
+    header <> payload
+  end
+
   def encode_frame(:ping) do
     message_type_id = 5
     message_id = 0
@@ -9,18 +21,6 @@ defmodule Sink.Connection.Protocol do
     message_type_id = 6
     message_id = 0
     <<message_type_id::4, message_id::integer-size(12)>>
-  end
-
-  def encode_frame(message_type, message_id, payload) do
-    message_type_id =
-      case message_type do
-        :ack -> 3
-        :publish -> 4
-      end
-
-    header = <<message_type_id::4, message_id::integer-size(12)>>
-
-    header <> payload
   end
 
   def decode_frame(message) do
@@ -45,10 +45,6 @@ defmodule Sink.Connection.Protocol do
 
   def encode_payload(:ack, message_type_id, message_id) do
     <<message_type_id::4, message_id::integer-size(12)>>
-  end
-
-  def decode_payload(:ack, <<message_type_id::4, message_id::integer-size(12)>>) do
-    {message_type_id, message_id}
   end
 
   def decode_payload(:publish, payload) do

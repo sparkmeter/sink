@@ -3,7 +3,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   Defines the interface for connection events.
   """
 
-  @type ack_key() :: any()
+  @type ack_key() :: {event_type_id(), key(), offset()}
   @type event_type_id() :: pos_integer()
   @type key() :: binary()
   @type offset() :: non_neg_integer()
@@ -22,10 +22,8 @@ defmodule Sink.Connection.ClientConnectionHandler do
 
   @doc """
   Run implementer's logic for handling a "ack"
-
-  Takes the pid of the originator and an arbitrary value for ack_key
   """
-  @callback handle_ack(pid(), ack_key()) :: :ok
+  @callback handle_ack(ack_key()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "publish" message

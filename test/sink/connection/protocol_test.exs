@@ -22,10 +22,9 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "encodes a ack" do
-      payload = <<1, 2>>
-      frame = Protocol.encode_frame(:ack, 0, payload)
+      frame = Protocol.encode_frame(:ack, 0)
 
-      expected = <<48, 0>> <> payload
+      expected = <<48, 0>>
       assert expected == frame
     end
 
@@ -76,12 +75,6 @@ defmodule Sink.Connection.ProtocolTest do
       payload = Protocol.encode_payload(:ack, 0, 585)
 
       assert <<2, 73>> == payload
-    end
-  end
-
-  describe "decode_payload (ack)" do
-    test "decodes an ack" do
-      assert {0, 585} == Protocol.decode_payload(:ack, <<2, 73>>)
     end
   end
 

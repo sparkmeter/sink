@@ -1,10 +1,13 @@
 defmodule Sink.Connection.ServerHandler do
   @moduledoc """
-  Handles incoming connections
+  Handles client connections.
+
+  Each server connection handles one client connection.
   """
   use GenServer
   require Logger
   alias Sink.Connection
+  alias Sink.Connection.Protocol
 
   @registry __MODULE__
   @mod_transport Application.compile_env!(:sink, :transport)
@@ -13,21 +16,18 @@ defmodule Sink.Connection.ServerHandler do
   @is_not_test @mod_transport == Sink.Connection.Transport.SSL
 
   defmodule State do
+    alias Sink.Connection.{Inflight, Stats}
+
     defstruct [
       :client_id,
       :socket,
       :transport,
       :peername,
       :handler,
-      :next_message_id,
       :ssl_opts,
-      :last_received_at,
-      :keepalive_interval,
-      :start_time,
-      inflight: %{}
+      :stats,
+      :inflight
     ]
-
-    @default_keepalive_interval 60_000
 
     def init(client_id, socket, transport, peername, handler, ssl_opts, now) do
       %State{
@@ -37,41 +37,37 @@ defmodule Sink.Connection.ServerHandler do
         peername: peername,
         handler: handler,
         ssl_opts: ssl_opts,
-        next_message_id: Sink.Connection.next_message_id(nil),
-        start_time: now,
-        last_received_at: now,
-        keepalive_interval:
-          Application.get_env(:sink, :keepalive_interval, @default_keepalive_interval)
+        stats: Stats.init(now),
+        inflight: Inflight.init()
       }
     end
 
-    def put_inflight(
-          %State{inflight: inflight, next_message_id: next_message_id} = state,
-          {ack_from, ack_key}
-        ) do
-      state
-      |> Map.put(:inflight, Map.put(inflight, next_message_id, {ack_from, ack_key}))
-      |> Map.put(:next_message_id, Connection.next_message_id(next_message_id))
+    def put_inflight(%State{} = state, ack_key) do
+      %State{state | inflight: Inflight.put_inflight(state.inflight, ack_key)}
     end
 
-    def find_inflight(%State{inflight: inflight}, message_id), do: inflight[message_id]
-
-    def inflight?(%State{inflight: inflight}, ack_key) do
-      inflight
-      |> Map.values()
-      |> Enum.any?(fn {_, key} -> key == ack_key end)
+    def find_inflight(%State{} = state, message_id) do
+      Inflight.find_inflight(state.inflight, message_id)
     end
 
-    def remove_inflight(%State{inflight: inflight} = state, message_id) do
-      Map.put(state, :inflight, Map.delete(inflight, message_id))
+    def inflight?(%State{} = state, ack_key) do
+      Inflight.inflight?(state.inflight, ack_key)
+    end
+
+    def remove_inflight(%State{} = state, message_id) do
+      %State{state | inflight: Inflight.remove_inflight(state.inflight, message_id)}
+    end
+
+    def log_sent(%State{} = state, now) do
+      %State{state | stats: Stats.log_sent(state.stats, now)}
     end
 
     def log_received(%State{} = state, now) do
-      %State{state | last_received_at: now}
+      %State{state | stats: Stats.log_received(state.stats, now)}
     end
 
     def alive?(%State{} = state, now) do
-      state.keepalive_interval * 1.5 > now - state.last_received_at
+      Stats.alive?(state.stats, now)
     end
   end
 
@@ -184,7 +180,7 @@ defmodule Sink.Connection.ServerHandler do
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
 
         state = State.init(client_id, socket, transport, peername, handler, ssl_opts, now())
-        schedule_check_keepalive(state.keepalive_interval)
+        schedule_check_keepalive(state.stats.keepalive_interval)
 
         :gen_server.enter_loop(
           __MODULE__,
@@ -201,18 +197,14 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   @impl true
-  def terminate(
-        reason,
-        %State{client_id: client_id, peername: peername, start_time: start_time, handler: handler} =
-          state
-      ) do
+  def terminate(reason, %State{} = state) do
     Sink.Telemetry.stop(
       :connection,
-      start_time,
-      %{client_id: client_id, peername: peername, reason: reason}
+      state.stats.start_time,
+      %{client_id: state.client_id, peername: state.peername, reason: reason}
     )
 
-    :ok = handler.down(client_id)
+    :ok = state.handler.down(state.client_id)
 
     state
   end
@@ -221,20 +213,20 @@ defmodule Sink.Connection.ServerHandler do
 
   @impl true
   def handle_call({:ack, message_id}, _from, state) do
-    frame = Sink.Connection.Protocol.encode_frame(:ack, message_id, <<>>)
+    frame = Protocol.encode_frame(:ack, message_id)
     :ok = @mod_transport.send(state.socket, frame)
 
     {:reply, :ok, state}
   end
 
-  def handle_call({:publish, payload, ack_key}, {from, _}, state) do
+  def handle_call({:publish, payload, ack_key}, _, state) do
     if State.inflight?(state, ack_key) do
       {:reply, {:error, :inflight}, state}
     else
-      encoded = Sink.Connection.Protocol.encode_frame(:publish, state.next_message_id, payload)
+      encoded = Protocol.encode_frame(:publish, state.inflight.next_message_id, payload)
 
       :ok = @mod_transport.send(state.socket, encoded)
-      {:reply, :ok, State.put_inflight(state, {from, ack_key})}
+      {:reply, :ok, State.put_inflight(state, ack_key)}
     end
   end
 
@@ -262,9 +254,9 @@ defmodule Sink.Connection.ServerHandler do
       |> Connection.Protocol.decode_frame()
       |> case do
         {:ack, message_id} ->
-          {ack_from, ack_key} = State.find_inflight(state, message_id)
+          ack_key = State.find_inflight(state, message_id)
 
-          case handler.handle_ack(ack_from, client_id, ack_key) do
+          case handler.handle_ack(client_id, ack_key) do
             :ok ->
               State.remove_inflight(state, message_id)
               # todo: error handling
@@ -288,13 +280,6 @@ defmodule Sink.Connection.ServerHandler do
             :ack ->
               {:reply, :ok, state} = handle_call({:ack, message_id}, self(), state)
               state
-              # todo: error handling
-              # :error ->
-              # send a nack
-              # maybe put the connection into an error state
-              # rescue ->
-              # nack
-              # maybe put the connection into an error state
           end
 
         :ping ->
