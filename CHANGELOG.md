@@ -4,10 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.6.0] - 2021-04-07
+### Added
+- Adds NACKs [CH47017]
+
 ### Changed
 - ACKs no longer have extra info at the end
-- Adds NACKs [CH47017]
+
 
 ## [0.5.0] - 2021-04-03
 ### Added
