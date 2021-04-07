@@ -60,6 +60,15 @@ defmodule Sink.Connection.ProtocolTest do
       assert 0 == message_id
     end
 
+    test "decodes a nack" do
+      frame = <<112, 0>> <> "\x01*crash"
+      {message_type, message_id, payload} = Protocol.decode_frame(frame)
+
+      assert :nack == message_type
+      assert 0 == message_id
+      assert "\x01*crash" == payload
+    end
+
     test "decodes a publish" do
       frame = <<64, 0>> <> @encoded_event
       {message_type, message_id, payload} = Protocol.decode_frame(frame)
@@ -70,11 +79,17 @@ defmodule Sink.Connection.ProtocolTest do
     end
   end
 
-  describe "encode_payload (ack)" do
-    test "encodes an ack" do
-      payload = Protocol.encode_payload(:ack, 0, 585)
+  describe "encode_payload (nack)" do
+    test "encodes a nack" do
+      payload = Protocol.encode_payload(:nack, {<<42>>, "crash"})
 
-      assert <<2, 73>> == payload
+      assert "\x01*crash" == payload
+    end
+  end
+
+  describe "decode_payload (nack)" do
+    test "decodes a nack" do
+      assert {<<42>>, "crash"} == Protocol.decode_payload(:nack, "\x01*crash")
     end
   end
 

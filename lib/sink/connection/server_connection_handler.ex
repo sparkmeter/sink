@@ -10,6 +10,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type offset() :: non_neg_integer()
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
+  @type nack_data() :: {binary(), Strint.t()}
   @type peer_cert() :: binary()
 
   @doc """
@@ -33,6 +34,11 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @callback handle_ack(client_id(), ack_key()) :: :ok
 
   @doc """
+  Run implementer's logic for handling a "nack"
+  """
+  @callback handle_nack(client_id(), ack_key(), nack_data()) :: :ok
+
+  @doc """
   Run implementer's logic for handling a "publish" message.
 
   Should respond with either an ack or a nack with information about the nack
@@ -42,5 +48,5 @@ defmodule Sink.Connection.ServerConnectionHandler do
               offset(),
               event_data(),
               message_id()
-            ) :: :ack
+            ) :: :ack | {:nack, nack_data()}
 end

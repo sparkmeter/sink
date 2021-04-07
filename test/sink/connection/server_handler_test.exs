@@ -6,6 +6,7 @@ defmodule Sink.Connection.ServerHandlerTest do
   Process.Monitor magic.
   """
   use ExUnit.Case, async: false
+  import ExUnit.CaptureLog
   import Mox
   alias Sink.Connection.{Inflight, Protocol, ServerHandler, Stats}
 
@@ -128,6 +129,86 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert 100 = new_state.inflight.next_message_id
       assert 0 != new_state.stats.last_received_at
     end
+
+    test "with a handler returns a nack" do
+      event_type_id = 1
+      key = <<1, 2>>
+      offset = 42
+      ack_key = {event_type_id, key, offset}
+      event_data = <<9, 8, 7>>
+      message_id = 1234
+      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, event_data})
+      encoded_message = Protocol.encode_frame(:publish, message_id, payload)
+      nack_data = {<<0, 0, 0>>, "crash!"}
+
+      @mod_transport
+      |> expect(:send, fn 123, frame ->
+        response_payload = Protocol.encode_payload(:nack, nack_data)
+        expected_nack_frame = Protocol.encode_frame(:nack, message_id, response_payload)
+
+        assert expected_nack_frame == frame
+        :ok
+      end)
+
+      @handler
+      |> expect(:handle_publish, 1, fn {"test-client", ^event_type_id, ^key},
+                                       ^offset,
+                                       ^event_data,
+                                       ^message_id ->
+        {:nack, nack_data}
+      end)
+
+      state = @sample_state
+
+      assert {:noreply, new_state} =
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+
+      assert %{1 => 1} == ServerHandler.State.sent_nacks_by_event_type_id(new_state)
+      assert [{1234, ack_key, nack_data}] == new_state.inflight.sent_nacks
+    end
+
+    test "if the SinkHandler raises an error we send a NACK" do
+      event_type_id = 1
+      key = <<1, 2>>
+      offset = 42
+      event_data = <<9, 8, 7>>
+      message_id = 1234
+      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, event_data})
+      encoded_message = Protocol.encode_frame(:publish, message_id, payload)
+
+      # expect a NACK
+      @mod_transport
+      |> expect(:send, fn 123, frame ->
+        assert {:nack, ^message_id, nack_payload} = Protocol.decode_frame(frame)
+        {machine_message, human_message} = Protocol.decode_payload(:nack, nack_payload)
+
+        assert <<>> == machine_message
+        assert human_message =~ "boom"
+        assert human_message =~ "ServerHandlerTest"
+
+        :ok
+      end)
+
+      @handler
+      |> expect(:handle_publish, 1, fn {"test-client", ^event_type_id, ^key},
+                                       ^offset,
+                                       ^event_data,
+                                       ^message_id ->
+        raise(ArgumentError, message: "boom")
+      end)
+
+      assert capture_log(fn ->
+               assert {:noreply, new_state} =
+                        ServerHandler.handle_info(
+                          {:ssl, :fake, encoded_message},
+                          @sample_state
+                        )
+
+               assert 100 == new_state.inflight.next_message_id
+               assert 0 != new_state.stats.last_sent_at
+               assert 0 != new_state.stats.last_received_at
+             end) =~ "boom"
+    end
   end
 
   describe "receiving (ack)" do
@@ -136,7 +217,6 @@ defmodule Sink.Connection.ServerHandlerTest do
       key = <<1, 2>>
       offset = 42
       ack_key = {event_type_id, key, offset}
-
       encoded_message = Protocol.encode_frame(:ack, 100)
 
       @handler
@@ -173,6 +253,37 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, @sample_state)
+    end
+  end
+
+  describe "receiving (nack)" do
+    test "with good data decodes and forwards to handler" do
+      event_type_id = 1
+      key = <<1, 2>>
+      offset = 42
+      message_id = 100
+      ack_key = {event_type_id, key, offset}
+      nack_data = {<<0, 0, 0>>, "crash!"}
+
+      payload = Protocol.encode_payload(:nack, nack_data)
+      encoded_message = Protocol.encode_frame(:nack, message_id, payload)
+
+      @handler
+      |> expect(:handle_nack, fn "test-client", ^ack_key, ^nack_data ->
+        :ok
+      end)
+
+      state =
+        @sample_state
+        |> ServerHandler.State.put_inflight(ack_key)
+
+      assert {:noreply, new_state} =
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+
+      assert %{1 => 1} == ServerHandler.State.received_nacks_by_event_type_id(new_state)
+      assert [{100, ack_key, nack_data}] == new_state.inflight.received_nacks
+
+      assert true == ServerHandler.State.inflight?(new_state, ack_key)
     end
   end
 end

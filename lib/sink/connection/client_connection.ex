@@ -59,6 +59,22 @@ defmodule Sink.Connection.ClientConnection do
     def alive?(%State{} = state, now) do
       Stats.alive?(state.stats, now)
     end
+
+    def put_received_nack(%State{} = state, message_id, ack_key, nack_data) do
+      Map.update!(state, :inflight, &Inflight.put_received_nack(&1, message_id, ack_key, nack_data))
+    end
+
+    def put_sent_nack(%State{} = state, message_id, ack_key, nack_data) do
+      Map.update!(state, :inflight, &Inflight.put_sent_nack(&1, message_id, ack_key, nack_data))
+    end
+
+    def received_nacks_by_event_type_id(%State{} = state) do
+      Inflight.received_nacks_by_event_type_id(state.inflight)
+    end
+
+    def sent_nacks_by_event_type_id(%State{} = state) do
+      Inflight.sent_nacks_by_event_type_id(state.inflight)
+    end
   end
 
   # Client
@@ -81,6 +97,14 @@ defmodule Sink.Connection.ClientConnection do
   """
   def info do
     :sys.get_state(Process.whereis(__MODULE__))
+  end
+
+  def get_received_nacks_by_event_type_id() do
+    GenServer.call(__MODULE__, :get_received_nacks_by_event_type_id)
+  end
+
+  def get_sent_nacks_by_event_type_id() do
+    GenServer.call(__MODULE__, :get_sent_nacks_by_event_type_id)
   end
 
   # Server callbacks
@@ -108,6 +132,14 @@ defmodule Sink.Connection.ClientConnection do
 
       {:reply, :ok, new_state}
     end
+  end
+
+  def handle_call(:get_received_nacks_by_event_type_id, _from, state) do
+    {:reply, State.received_nacks_by_event_type_id(state), state}
+  end
+
+  def handle_call(:get_sent_nacks_by_event_type_id, _from, state) do
+    {:reply, State.sent_nacks_by_event_type_id(state), state}
   end
 
   # keepalive
@@ -163,24 +195,28 @@ defmodule Sink.Connection.ClientConnection do
             Connection.Protocol.decode_payload(:publish, payload)
 
           try do
-            case handler.handle_publish({event_type_id, key}, offset, event_data, message_id) do
-              :ack ->
-                {:reply, :ok, state} = handle_call({:ack, message_id}, self(), state)
-                State.log_sent(state, now())
-                # todo: error handling
-                # :error ->
-                # send a nack
-                # maybe put the connection into an error state
-                # rescue ->
-                # nack
-                # maybe put the connection into an error state
-            end
+            handler.handle_publish({event_type_id, key}, offset, event_data, message_id)
           rescue
             e ->
               formatted = Exception.format(:error, e, __STACKTRACE__)
               Logger.error(formatted)
-              state
+              {:nack, {<<>>, formatted}}
           end
+          |> case do
+            :ack ->
+              {:reply, :ok, state} = handle_call({:ack, message_id}, self(), state)
+              state
+
+            {:nack, {machine_message, human_message}} ->
+              nack_data = {machine_message, human_message}
+              ack_key = {event_type_id, key, offset}
+              nack_payload = Connection.Protocol.encode_payload(:nack, nack_data)
+              frame = Connection.Protocol.encode_frame(:nack, message_id, nack_payload)
+              :ok = @mod_transport.send(state.socket, frame)
+
+              State.put_sent_nack(state, message_id, ack_key, nack_data)
+          end
+          |> State.log_sent(now())
 
         :ping ->
           frame = Connection.Protocol.encode_frame(:pong)

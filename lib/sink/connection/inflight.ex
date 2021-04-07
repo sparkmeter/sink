@@ -4,7 +4,9 @@ defmodule Sink.Connection.Inflight do
   """
   defstruct [
     :next_message_id,
-    inflight: %{}
+    inflight: %{},
+    received_nacks: [],
+    sent_nacks: []
   ]
 
   @max_message_id (:math.pow(2, 12) - 1) |> Kernel.trunc()
@@ -37,6 +39,28 @@ defmodule Sink.Connection.Inflight do
     Map.put(state, :inflight, Map.delete(state.inflight, message_id))
   end
 
+  def put_received_nack(%__MODULE__{} = state, message_id, ack_key, nack_data) do
+    nack = {message_id, ack_key, nack_data}
+    %__MODULE__{state | received_nacks: [nack | state.received_nacks]}
+  end
+
+  def received_nack_count(%__MODULE__{} = state), do: length(state.received_nacks)
+
+  def put_sent_nack(%__MODULE__{} = state, message_id, ack_key, nack_data) do
+    nack = {message_id, ack_key, nack_data}
+    %__MODULE__{state | sent_nacks: [nack | state.sent_nacks]}
+  end
+
+  def sent_nack_count(%__MODULE__{} = state), do: length(state.sent_nacks)
+
+  def received_nacks_by_event_type_id(%__MODULE__{} = state) do
+    group_nacks_by_event_type_id(state.received_nacks)
+  end
+
+  def sent_nacks_by_event_type_id(%__MODULE__{} = state) do
+    group_nacks_by_event_type_id(state.sent_nacks)
+  end
+
   defp next_message_id(nil) do
     Enum.random(0..@max_message_id)
   end
@@ -47,5 +71,12 @@ defmodule Sink.Connection.Inflight do
 
   defp next_message_id(message_id) do
     message_id + 1
+  end
+
+  defp group_nacks_by_event_type_id(nacks) do
+    nacks
+    |> Enum.frequencies_by(fn {_, {event_type_id, _, _}, _} ->
+      event_type_id
+    end)
   end
 end

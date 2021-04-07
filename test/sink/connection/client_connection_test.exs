@@ -65,8 +65,7 @@ defmodule Sink.Connection.ClientConnectionTest do
       assert 0 != new_state.stats.last_received_at
     end
 
-    test "if the SinkHandler raises an error we don't do anything for now (we will send a NACK once they're implemented)" do
-      # todo: change once NACKs are implemented
+    test "if the SinkHandler raises an error we send a NACK" do
       event_type_id = 1
       key = <<1, 2>>
       offset = 42
@@ -75,9 +74,18 @@ defmodule Sink.Connection.ClientConnectionTest do
       payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, event_data})
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
-      # eventually expect a NACK
-      # @mod_transport
-      # |> expect(:send, fn 123, NACK -> :ok end)
+      # expect a NACK
+      @mod_transport
+      |> expect(:send, fn 123, frame ->
+        assert {:nack, ^message_id, nack_payload} = Protocol.decode_frame(frame)
+        {machine_message, human_message} = Protocol.decode_payload(:nack, nack_payload)
+
+        assert <<>> == machine_message
+        assert human_message =~ "boom"
+        assert human_message =~ "ClientConnectionTest"
+
+        :ok
+      end)
 
       @handler
       |> expect(:handle_publish, 1, fn {^event_type_id, ^key},
@@ -95,7 +103,7 @@ defmodule Sink.Connection.ClientConnectionTest do
                         )
 
                assert 100 == new_state.inflight.next_message_id
-               assert 0 == new_state.stats.last_sent_at
+               assert 0 != new_state.stats.last_sent_at
                assert 0 != new_state.stats.last_received_at
              end) =~ "boom"
     end
@@ -105,7 +113,6 @@ defmodule Sink.Connection.ClientConnectionTest do
       key = <<1, 2>>
       offset = 42
       ack_key = {event_type_id, key, offset}
-
       encoded_message = Protocol.encode_frame(:ack, 100)
 
       @handler

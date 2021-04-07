@@ -24,6 +24,16 @@ defmodule Sink.Telemetry do
     TODO: when connection processes are monitored and unexpectedly go down add
     hooks for this event
 
+  - [:sink, :connection, :sent, :nack]
+    is executed when a NACK is sent
+    meta: %{client_id}
+    - client_id: the base station ID
+
+  - [:sink, :connection, :received, :nack]
+    is executed when a NACK is received
+    meta: %{client_id}
+    - client_id: the base station ID
+
   """
 
   @doc false
@@ -52,5 +62,9 @@ defmodule Sink.Telemetry do
       |> Map.put(:stacktrace, stack)
 
     :telemetry.execute([:sink, event, :exception], measurements, meta)
+  end
+
+  def nack(direction, meta \\ %{}) do
+    :telemetry.execute([:sink, :connection, direction, :nack], %{}, meta)
   end
 end

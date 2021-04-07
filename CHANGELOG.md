@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 ### Changed
 - ACKs no longer have extra info at the end
+- Adds NACKs [CH47017]
 
 ## [0.5.0] - 2021-04-03
 ### Added

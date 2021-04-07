@@ -69,6 +69,22 @@ defmodule Sink.Connection.ServerHandler do
     def alive?(%State{} = state, now) do
       Stats.alive?(state.stats, now)
     end
+
+    def put_received_nack(%State{} = state, message_id, ack_key, nack_data) do
+      Map.update!(state, :inflight, &Inflight.put_received_nack(&1, message_id, ack_key, nack_data))
+    end
+
+    def put_sent_nack(%State{} = state, message_id, ack_key, nack_data) do
+      Map.update!(state, :inflight, &Inflight.put_sent_nack(&1, message_id, ack_key, nack_data))
+    end
+
+    def received_nacks_by_event_type_id(%State{} = state) do
+      Inflight.received_nacks_by_event_type_id(state.inflight)
+    end
+
+    def sent_nacks_by_event_type_id(%State{} = state) do
+      Inflight.sent_nacks_by_event_type_id(state.inflight)
+    end
   end
 
   # Client
@@ -118,6 +134,18 @@ defmodule Sink.Connection.ServerHandler do
       [] -> false
       [{_pid, _}] -> true
     end
+  end
+
+  def get_received_nacks_by_event_type_id(client_id) do
+    client_id
+    |> whereis()
+    |> GenServer.call(:get_received_nacks_by_event_type_id)
+  end
+
+  def get_sent_nacks_by_event_type_id(client_id) do
+    client_id
+    |> whereis()
+    |> GenServer.call(:get_sent_nacks_by_event_type_id)
   end
 
   @doc """
@@ -216,7 +244,7 @@ defmodule Sink.Connection.ServerHandler do
     frame = Protocol.encode_frame(:ack, message_id)
     :ok = @mod_transport.send(state.socket, frame)
 
-    {:reply, :ok, state}
+    {:reply, :ok, State.log_sent(state, now())}
   end
 
   def handle_call({:publish, payload, ack_key}, _, state) do
@@ -228,6 +256,14 @@ defmodule Sink.Connection.ServerHandler do
       :ok = @mod_transport.send(state.socket, encoded)
       {:reply, :ok, State.put_inflight(state, ack_key)}
     end
+  end
+
+  def handle_call(:get_received_nacks_by_event_type_id, _from, state) do
+    {:reply, State.received_nacks_by_event_type_id(state), state}
+  end
+
+  def handle_call(:get_sent_nacks_by_event_type_id, _from, state) do
+    {:reply, State.sent_nacks_by_event_type_id(state), state}
   end
 
   # keepalive
@@ -266,21 +302,53 @@ defmodule Sink.Connection.ServerHandler do
               # how do we handle a failed ack?
           end
 
+        {:nack, message_id, payload} ->
+          nack_data = Connection.Protocol.decode_payload(:nack, payload)
+          ack_key = State.find_inflight(state, message_id)
+          new_state = State.put_received_nack(state, message_id, ack_key, nack_data)
+          {event_type_id, _, _} = ack_key
+          Sink.Telemetry.nack(:received, %{client_id: client_id, event_type_id: event_type_id})
+
+          :ok = handler.handle_nack(client_id, ack_key, nack_data)
+          new_state
+
         {:publish, message_id, payload} ->
           {event_type_id, key, offset, event_data} =
             Connection.Protocol.decode_payload(:publish, payload)
 
           # send the event to handler
-          case handler.handle_publish(
-                 {client_id, event_type_id, key},
-                 offset,
-                 event_data,
-                 message_id
-               ) do
+          try do
+            handler.handle_publish(
+              {client_id, event_type_id, key},
+              offset,
+              event_data,
+              message_id
+            )
+          rescue
+            e ->
+              formatted = Exception.format(:error, e, __STACKTRACE__)
+              Logger.error(formatted)
+              {:nack, {<<>>, formatted}}
+          end
+          |> case do
             :ack ->
               {:reply, :ok, state} = handle_call({:ack, message_id}, self(), state)
               state
+
+            {:nack, nack_data} ->
+              ack_key = {event_type_id, key, offset}
+              payload = Protocol.encode_payload(:nack, nack_data)
+              frame = Protocol.encode_frame(:nack, message_id, payload)
+              :ok = @mod_transport.send(state.socket, frame)
+
+              Sink.Telemetry.nack(:sent, %{
+                client_id: state.client_id,
+                event_type_id: event_type_id
+              })
+
+              State.put_sent_nack(state, message_id, ack_key, nack_data)
           end
+          |> State.log_sent(now())
 
         :ping ->
           frame = Sink.Connection.Protocol.encode_frame(:pong)
