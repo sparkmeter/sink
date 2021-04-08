@@ -9,7 +9,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @type offset() :: non_neg_integer()
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
-  @type nack_data() :: {binary(), Strint.t()}
+  @type nack_data() :: {binary(), String.t()}
 
   @doc """
   The connection has been established and authenticated
