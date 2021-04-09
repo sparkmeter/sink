@@ -269,7 +269,7 @@ defmodule Sink.Connection.ServerHandler do
   # keepalive
 
   def handle_info(:tick_check_keepalive, state) do
-    schedule_check_keepalive(state.keepalive_interval)
+    schedule_check_keepalive(state.stats.keepalive_interval)
 
     if State.alive?(state, now()) do
       {:noreply, state}
