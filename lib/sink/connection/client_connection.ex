@@ -61,7 +61,11 @@ defmodule Sink.Connection.ClientConnection do
     end
 
     def put_received_nack(%State{} = state, message_id, ack_key, nack_data) do
-      Map.update!(state, :inflight, &Inflight.put_received_nack(&1, message_id, ack_key, nack_data))
+      Map.update!(
+        state,
+        :inflight,
+        &Inflight.put_received_nack(&1, message_id, ack_key, nack_data)
+      )
     end
 
     def put_sent_nack(%State{} = state, message_id, ack_key, nack_data) do
@@ -158,7 +162,7 @@ defmodule Sink.Connection.ClientConnection do
   end
 
   def handle_info(:tick_check_keepalive, state) do
-    schedule_check_keepalive(state.keepalive_interval)
+    schedule_check_keepalive(state.stats.keepalive_interval)
 
     if State.alive?(state, now()) do
       {:noreply, state}

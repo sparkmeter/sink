@@ -71,7 +71,11 @@ defmodule Sink.Connection.ServerHandler do
     end
 
     def put_received_nack(%State{} = state, message_id, ack_key, nack_data) do
-      Map.update!(state, :inflight, &Inflight.put_received_nack(&1, message_id, ack_key, nack_data))
+      Map.update!(
+        state,
+        :inflight,
+        &Inflight.put_received_nack(&1, message_id, ack_key, nack_data)
+      )
     end
 
     def put_sent_nack(%State{} = state, message_id, ack_key, nack_data) do
