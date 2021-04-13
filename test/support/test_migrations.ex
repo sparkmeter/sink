@@ -13,6 +13,7 @@ defmodule Sink.TestMigrations do
       add(:key, :binary, null: false, primary_key: true)
       add(:event_type_id, :integer, null: false, primary_key: true)
       add(:offset, :integer, null: false, primary_key: true)
+      add(:timestamp, :integer, null: false)
       add(:event_data, :binary)
     end
 
@@ -21,6 +22,7 @@ defmodule Sink.TestMigrations do
       add(:key, :binary, null: false, primary_key: true)
       add(:event_type_id, :integer, null: false, primary_key: true)
       add(:offset, :integer, null: false, primary_key: true)
+      add(:timestamp, :integer, null: false)
       add(:event_data, :binary)
     end
 

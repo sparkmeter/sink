@@ -8,12 +8,13 @@ defmodule Sink.EventLog.TestEctoGenericEventLog do
     field(:event_type_id, :integer, primary_key: true)
     field(:key, :binary, primary_key: true)
     field(:offset, :integer, primary_key: true)
+    field(:timestamp, :integer)
     field(:event_data, :binary)
   end
 
   # @impl true
-  def check_dupe({event_type_id, key}, offset, event_data) do
-    EctoGenericEventLog.check_dupe(__MODULE__, {event_type_id, key}, offset, event_data)
+  def check_dupe({event_type_id, key}, offset, {event_data, timestamp}) do
+    EctoGenericEventLog.check_dupe(__MODULE__, {event_type_id, key}, offset, {event_data, timestamp})
   end
 
   # @impl true
@@ -27,7 +28,7 @@ defmodule Sink.EventLog.TestEctoGenericEventLog do
   end
 
   # @impl true
-  def log({event_type_id, key}, offset, event_data) do
-    EctoGenericEventLog.log(__MODULE__, {event_type_id, key}, offset, event_data)
+  def log({event_type_id, key}, offset, {event_data, timestamp}) do
+    EctoGenericEventLog.log(__MODULE__, {event_type_id, key}, offset, {event_data, timestamp})
   end
 end

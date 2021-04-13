@@ -12,6 +12,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type message_id() :: non_neg_integer()
   @type nack_data() :: {binary(), Strint.t()}
   @type peer_cert() :: binary()
+  @type timestamp() :: non_neg_integer()
 
   @doc """
   The connection has been established and authenticated
@@ -46,6 +47,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @callback handle_publish(
               {client_id(), event_type_id(), key()},
               offset(),
+              timestamp(),
               event_data(),
               message_id()
             ) :: :ack | {:nack, nack_data()}

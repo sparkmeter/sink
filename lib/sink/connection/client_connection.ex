@@ -195,11 +195,11 @@ defmodule Sink.Connection.ClientConnection do
           end
 
         {:publish, message_id, payload} ->
-          {event_type_id, key, offset, event_data} =
+          {event_type_id, key, offset, timestamp, event_data} =
             Connection.Protocol.decode_payload(:publish, payload)
 
           try do
-            handler.handle_publish({event_type_id, key}, offset, event_data, message_id)
+            handler.handle_publish({event_type_id, key}, offset, timestamp, event_data, message_id)
           rescue
             e ->
               formatted = Exception.format(:error, e, __STACKTRACE__)

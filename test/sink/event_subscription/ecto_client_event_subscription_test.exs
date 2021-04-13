@@ -10,6 +10,7 @@ defmodule Sink.EventSubscription.EctoEventClientSubscriptionTest do
   @topic {@client_id, @event_type_id, @event_key}
   @event_data <<0, 0, 0>>
   @offset 1
+  @timestamp 1_618_150_125
 
   setup do
     # Explicitly get a connection before each test
@@ -18,20 +19,20 @@ defmodule Sink.EventSubscription.EctoEventClientSubscriptionTest do
 
   describe "with no client_id" do
     test "subscribes to a topic with an event" do
-      :ok = TestEctoClientEventLog.log(@topic, @offset, @event_data)
+      :ok = TestEctoClientEventLog.log(@topic, @offset, {@event_data, @timestamp})
 
       assert :ok = TestEctoClientEventSubscription.subscribe(@topic, @offset)
     end
 
     test "get_offsets for an existing subscription" do
-      :ok = TestEctoClientEventLog.log(@topic, @offset, @event_data)
+      :ok = TestEctoClientEventLog.log(@topic, @offset, {@event_data, @timestamp})
       :ok = TestEctoClientEventSubscription.subscribe(@topic, @offset)
 
       assert {0, 1} == TestEctoClientEventSubscription.get_offsets(@topic)
     end
 
     test "ack event" do
-      :ok = TestEctoClientEventLog.log(@topic, @offset, @event_data)
+      :ok = TestEctoClientEventLog.log(@topic, @offset, {@event_data, @timestamp})
       :ok = TestEctoClientEventSubscription.subscribe(@topic, @offset)
 
       assert :ok == TestEctoClientEventSubscription.ack(@topic, @offset)
@@ -40,7 +41,7 @@ defmodule Sink.EventSubscription.EctoEventClientSubscriptionTest do
     end
 
     test "update_or_create (update)" do
-      :ok = TestEctoClientEventLog.log(@topic, @offset, @event_data)
+      :ok = TestEctoClientEventLog.log(@topic, @offset, {@event_data, @timestamp})
 
       assert :ok == TestEctoClientEventSubscription.update_or_create(@topic, @offset)
       assert {0, 1} == TestEctoClientEventSubscription.get_offsets(@topic)
@@ -53,7 +54,7 @@ defmodule Sink.EventSubscription.EctoEventClientSubscriptionTest do
     end
 
     test "event_queue (with a record)" do
-      :ok = TestEctoClientEventLog.log(@topic, @offset, @event_data)
+      :ok = TestEctoClientEventLog.log(@topic, @offset, {@event_data, @timestamp})
       :ok = TestEctoClientEventSubscription.subscribe(@topic, @offset)
 
       assert [{@event_type_id, @event_key, 0, 1}] ==

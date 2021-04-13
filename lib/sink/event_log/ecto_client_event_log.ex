@@ -5,11 +5,11 @@ defmodule Sink.EventLog.EctoClientEventLog do
   import Ecto.Query, only: [from: 2]
   @repo Application.fetch_env!(:sink, :ecto_repo)
 
-  def check_dupe(event_log, {client_id, event_type_id, key}, offset, event_data) do
+  def check_dupe(event_log, {client_id, event_type_id, key}, offset, {event_data, timestamp}) do
     case get(event_log, {client_id, event_type_id, key}, offset) do
       nil -> {:ok, false}
-      ^event_data -> {:ok, true}
-      mismatch_data -> {:error, :data_mismatch, mismatch_data}
+      {^event_data, ^timestamp} -> {:ok, true}
+      mismatch -> {:error, :data_mismatch, mismatch}
     end
   end
 
@@ -24,8 +24,8 @@ defmodule Sink.EventLog.EctoClientEventLog do
       nil ->
         nil
 
-      %{event_data: event_data} ->
-        event_data
+      %{event_data: event_data, timestamp: timestamp} ->
+        {event_data, timestamp}
     end
   end
 
@@ -42,19 +42,20 @@ defmodule Sink.EventLog.EctoClientEventLog do
       nil ->
         nil
 
-      %{event_data: event_data, offset: offset} ->
-        {offset, event_data}
+      %{event_data: event_data, offset: offset, timestamp: timestamp} ->
+        {offset, event_data, timestamp}
     end
   end
 
-  def log(event_log, {client_id, event_type_id, key}, offset, binary) do
+  def log(event_log, {client_id, event_type_id, key}, offset, {event_data, timestamp}) do
     record =
       struct(event_log.__struct__, %{
         client_id: client_id,
         event_type_id: event_type_id,
         key: key,
         offset: offset,
-        event_data: binary
+        event_data: event_data,
+        timestamp: timestamp
       })
 
     {:ok, _} = @repo.insert(record)

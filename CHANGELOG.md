@@ -6,7 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Fixed
-- Bug in keepalive for Sink Servers
+- Bug in keepalive for Sink Servers and Clients
+
+### Changed
+- Timestamp is now part of event logs and protocol
 
 ## [0.6.0] - 2021-04-07
 ### Added

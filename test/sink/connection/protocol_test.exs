@@ -4,6 +4,7 @@ defmodule Sink.Connection.ProtocolTest do
   alias Sink.Connection.Protocol
 
   @encoded_event <<1, 2, 1, 2, 1, 1, 0>>
+  @unix_now 1_618_150_125
 
   describe "encode_frame" do
     @tag :skip
@@ -95,20 +96,20 @@ defmodule Sink.Connection.ProtocolTest do
 
   describe "encode_payload (publish)" do
     test "encodes an event with an event_type_id, key, and event_data" do
-      payload = Protocol.encode_payload(:publish, {1, <<1, 2>>, 1, <<0>>})
+      payload = Protocol.encode_payload(:publish, {1, <<1, 2>>, 9, @unix_now, <<0>>})
 
-      expected = <<1, 2, 1, 2, 1, 1, 0>>
+      expected = <<1, 2, 1, 2, 9, 237, 133, 204, 131, 6, 1, 0>>
       assert expected == payload
     end
   end
 
   describe "decode_payload (publish)" do
     test "decodes an event from binary" do
-      payload = <<1, 2, 1, 2, 1, 1, 0>>
+      payload = <<1, 2, 1, 2, 9, 237, 133, 204, 131, 6, 1, 0>>
 
       event = Protocol.decode_payload(:publish, payload)
 
-      expected = {1, <<1, 2>>, 1, <<0>>}
+      expected = {1, <<1, 2>>, 9, @unix_now, <<0>>}
       assert expected == event
     end
   end

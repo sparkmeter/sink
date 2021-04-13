@@ -317,7 +317,7 @@ defmodule Sink.Connection.ServerHandler do
           new_state
 
         {:publish, message_id, payload} ->
-          {event_type_id, key, offset, event_data} =
+          {event_type_id, key, offset, timestamp, event_data} =
             Connection.Protocol.decode_payload(:publish, payload)
 
           # send the event to handler
@@ -325,6 +325,7 @@ defmodule Sink.Connection.ServerHandler do
             handler.handle_publish(
               {client_id, event_type_id, key},
               offset,
+              timestamp,
               event_data,
               message_id
             )

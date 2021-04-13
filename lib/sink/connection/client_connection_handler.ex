@@ -10,6 +10,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
   @type nack_data() :: {binary(), String.t()}
+  @type timestamp() :: non_neg_integer()
 
   @doc """
   The connection has been established and authenticated
@@ -37,6 +38,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @callback handle_publish(
               {event_type_id(), key()},
               offset(),
+              timestamp(),
               event_data(),
               message_id()
             ) :: :ack

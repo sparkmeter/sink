@@ -40,11 +40,12 @@ defmodule Sink.Connection.Protocol do
     end
   end
 
-  def encode_payload(:publish, {event_type_id, key, offset, event_data}) do
+  def encode_payload(:publish, {event_type_id, key, offset, timestamp, event_data}) do
     Varint.LEB128.encode(event_type_id) <>
       Varint.LEB128.encode(byte_size(key)) <>
       key <>
       Varint.LEB128.encode(offset) <>
+      Varint.LEB128.encode(timestamp) <>
       Varint.LEB128.encode(byte_size(event_data)) <>
       event_data
   end
@@ -69,9 +70,10 @@ defmodule Sink.Connection.Protocol do
     {event_type_id, rest} = Varint.LEB128.decode(payload)
     {key, rest} = _parse_varint_delimited_value(rest)
     {offset, rest} = Varint.LEB128.decode(rest)
+    {timestamp, rest} = Varint.LEB128.decode(rest)
     {event_data, <<>>} = _parse_varint_delimited_value(rest)
 
-    {event_type_id, key, offset, event_data}
+    {event_type_id, key, offset, timestamp, event_data}
   end
 
   def _parse_varint_delimited_value(binary) do

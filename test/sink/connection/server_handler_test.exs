@@ -31,6 +31,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       start_time: 0
     }
   }
+  @unix_now 1_618_150_125
 
   setup :set_mox_from_context
   setup :verify_on_exit!
@@ -109,7 +110,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       offset = 42
       event_data = <<9, 8, 7>>
       message_id = 1234
-      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, event_data})
+      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
       @mod_transport
@@ -118,6 +119,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       @handler
       |> expect(:handle_publish, 1, fn {"test-client", ^event_type_id, ^key},
                                        ^offset,
+                                       @unix_now,
                                        ^event_data,
                                        ^message_id ->
         :ack
@@ -137,7 +139,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       ack_key = {event_type_id, key, offset}
       event_data = <<9, 8, 7>>
       message_id = 1234
-      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, event_data})
+      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
       nack_data = {<<0, 0, 0>>, "crash!"}
 
@@ -153,6 +155,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       @handler
       |> expect(:handle_publish, 1, fn {"test-client", ^event_type_id, ^key},
                                        ^offset,
+                                       @unix_now,
                                        ^event_data,
                                        ^message_id ->
         {:nack, nack_data}
@@ -173,7 +176,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       offset = 42
       event_data = <<9, 8, 7>>
       message_id = 1234
-      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, event_data})
+      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
       # expect a NACK
@@ -192,6 +195,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       @handler
       |> expect(:handle_publish, 1, fn {"test-client", ^event_type_id, ^key},
                                        ^offset,
+                                       @unix_now,
                                        ^event_data,
                                        ^message_id ->
         raise(ArgumentError, message: "boom")

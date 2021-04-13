@@ -10,11 +10,11 @@ defmodule Sink.EventLog.EctoGenericEventLog do
 
   a `true` means it is a duplicate.
   """
-  def check_dupe(event_log, {event_type_id, key}, offset, event_data) do
+  def check_dupe(event_log, {event_type_id, key}, offset, {event_data, timestamp}) do
     case get(event_log, {event_type_id, key}, offset) do
       nil -> {:ok, false}
-      ^event_data -> {:ok, true}
-      mismatch_data -> {:error, :data_mismatch, mismatch_data}
+      {^event_data, ^timestamp} -> {:ok, true}
+      mismatch -> {:error, :data_mismatch, mismatch}
     end
   end
 
@@ -31,11 +31,11 @@ defmodule Sink.EventLog.EctoGenericEventLog do
       #      %{event_data: event_data} ->
       #        event_data
       record ->
-        record.event_data
+        {record.event_data, record.timestamp}
     end
   end
 
-  @spec get_latest(any(), {non_neg_integer(), binary()}) :: nil | {non_neg_integer(), binary()}
+  @spec get_latest(any(), {non_neg_integer(), binary()}) :: nil | {non_neg_integer(), binary(), non_neg_integer()}
   def get_latest(event_log, {event_type_id, key}) do
     from(e_log in event_log,
       where: e_log.event_type_id == ^event_type_id and e_log.key == ^key,
@@ -47,18 +47,19 @@ defmodule Sink.EventLog.EctoGenericEventLog do
       nil ->
         nil
 
-      %{event_data: event_data, offset: offset} ->
-        {offset, event_data}
+      %{event_data: event_data, offset: offset, timestamp: timestamp} ->
+        {offset, event_data, timestamp}
     end
   end
 
-  def log(event_log, {event_type_id, key}, offset, binary) do
+  def log(event_log, {event_type_id, key}, offset, {event_data, timestamp}) do
     record =
       struct(event_log.__struct__, %{
         event_type_id: event_type_id,
         key: key,
         offset: offset,
-        event_data: binary
+        event_data: event_data,
+        timestamp: timestamp
       })
 
     {:ok, _} = @repo.insert(record)

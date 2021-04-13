@@ -9,12 +9,13 @@ defmodule Sink.EventLog.TestEctoClientEventLog do
     field(:event_type_id, :integer, primary_key: true)
     field(:key, :binary, primary_key: true)
     field(:offset, :integer, primary_key: true)
+    field(:timestamp, :integer)
     field(:event_data, :binary)
   end
 
   # @impl true
-  def check_dupe({client_id, event_type_id, key}, offset, event_data) do
-    EctoClientEventLog.check_dupe(__MODULE__, {client_id, event_type_id, key}, offset, event_data)
+  def check_dupe({client_id, event_type_id, key}, offset, {event_data, timestamp}) do
+    EctoClientEventLog.check_dupe(__MODULE__, {client_id, event_type_id, key}, offset, {event_data, timestamp})
   end
 
   # @impl true
@@ -28,7 +29,7 @@ defmodule Sink.EventLog.TestEctoClientEventLog do
   end
 
   # @impl true
-  def log({client_id, event_type_id, key}, offset, event_data) do
-    EctoClientEventLog.log(__MODULE__, {client_id, event_type_id, key}, offset, event_data)
+  def log({client_id, event_type_id, key}, offset, {event_data, timestamp}) do
+    EctoClientEventLog.log(__MODULE__, {client_id, event_type_id, key}, offset, {event_data, timestamp})
   end
 end
