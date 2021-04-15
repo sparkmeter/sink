@@ -1,14 +1,33 @@
 stages:
     - test
+    - publish
 
 image: elixir:1.10.4
 
-test:
+.elixir_default: &elixir_default
   before_script:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/sparkmeter/zappy/avrora.git".insteadOf git@gitlab.com:sparkmeter/zappy/avrora.git
     - mix local.hex --force
     - mix local.rebar --force
+
+
+test:
+  <<: *elixir_default
   stage: test
   script:
     - mix deps.get
     - mix test
+
+pages:
+  stage: publish
+  <<: *elixir_default
+  script:
+    - mix coveralls.html
+    - mix docs
+    - mkdir public
+    - mv doc/* public
+  artifacts:
+    paths:
+      - public
+  only:
+    - tags

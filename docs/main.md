@@ -2,4 +2,8 @@
 
 ![Code coverage](https://gitlab.com/sparkmeter/zappy/sink/badges/master/coverage.svg?style=flat)
 
-Documentation is published here https://sparkmeter.gitlab.io/zappy/sink/
+Custom TCP connection handling for Nova.
+
+## Additional links
+
+- [Coverage](coverage/excoveralls.html)
