@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+### Added
+- Tracking of uptime/downtime [CH49119]
 ### Fixed
 - Bug in keepalive for Sink Servers and Clients
 

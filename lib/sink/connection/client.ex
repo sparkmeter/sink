@@ -26,7 +26,8 @@ defmodule Sink.Connection.Client do
       :ssl_opts,
       :handler,
       :connect_attempt_interval,
-      :disconnect_reason
+      :disconnect_reason,
+      :disconnect_time
     ]
 
     @first_connect_attempt 50
@@ -46,7 +47,8 @@ defmodule Sink.Connection.Client do
         host: host,
         ssl_opts: ssl_opts,
         handler: handler,
-        connect_attempt_interval: @first_connect_attempt
+        connect_attempt_interval: @first_connect_attempt,
+        disconnect_time: nil
       }
     end
 
@@ -75,18 +77,16 @@ defmodule Sink.Connection.Client do
     end
 
     def connected(%State{} = state, connection_pid) do
-      %State{
-        state
-        | connection_pid: connection_pid
-      }
+      %State{state | connection_pid: connection_pid}
     end
 
-    def disconnected(%State{} = state, reason) do
-      %State{
-        state
-        | connect_attempt_interval: nil,
-          disconnect_reason: reason
-      }
+    def disconnected(%State{} = state, reason, now) do
+      struct!(state,
+        connect_attempt_interval: nil,
+        connection_pid: nil,
+        disconnect_reason: reason,
+        disconnect_time: now
+      )
     end
   end
 
@@ -112,8 +112,7 @@ defmodule Sink.Connection.Client do
   """
   def ack(message_id) do
     if connected?() do
-      pid = Process.whereis(ClientConnection)
-      GenServer.call(pid, {:ack, message_id})
+      GenServer.call(ClientConnection, {:ack, message_id})
     else
       {:error, :no_connection}
     end
@@ -124,11 +123,32 @@ defmodule Sink.Connection.Client do
   """
   def publish(binary, ack_key) do
     if connected?() do
-      pid = Process.whereis(ClientConnection)
-      GenServer.call(pid, {:publish, binary, ack_key})
+      GenServer.call(ClientConnection, {:publish, binary, ack_key})
     else
       {:error, :no_connection}
     end
+  end
+
+  @doc """
+  Returns details about the connection status of the client.
+  """
+  @spec connection_status :: {:connected | :disconnected, DateTime.t()} | :disconnected
+  def connection_status do
+    gen_server_name =
+      if connected?() do
+        ClientConnection
+      else
+        __MODULE__
+      end
+
+    with {status, diff_in_ms} <- GenServer.call(gen_server_name, :connection_status) do
+      start_time = DateTime.add(DateTime.utc_now(), diff_in_ms * -1, :millisecond)
+      {status, start_time}
+    end
+  catch
+    # If those fail we're for sure disconnected,
+    # though unsure when we disconnected.
+    :exit, _ -> :disconnected
   end
 
   # Server callbacks
@@ -140,6 +160,15 @@ defmodule Sink.Connection.Client do
     Process.send_after(self(), :open_connection, state.connect_attempt_interval)
 
     {:ok, state}
+  end
+
+  def handle_call(:connection_status, _from, %State{disconnect_time: nil} = state) do
+    {:reply, :disconnected, state}
+  end
+
+  def handle_call(:connection_status, _from, %State{disconnect_time: time} = state)
+      when is_integer(time) do
+    {:reply, {:disconnected, now() - time}, state}
   end
 
   def handle_info(:open_connection, %State{} = state) do
@@ -180,11 +209,15 @@ defmodule Sink.Connection.Client do
       if pid == state.connection_pid do
         Logger.info("Disconnected from Sink server")
         Process.send_after(self(), :open_connection, 5_000)
-        State.disconnected(state, reason)
+        State.disconnected(state, reason, now())
       else
         state
       end
 
     {:noreply, new_state}
+  end
+
+  defp now do
+    System.monotonic_time(:millisecond)
   end
 end

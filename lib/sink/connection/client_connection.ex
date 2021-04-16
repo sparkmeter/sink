@@ -87,14 +87,6 @@ defmodule Sink.Connection.ClientConnection do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def init(socket: socket, handler: handler) do
-    state = State.init(socket, handler, now())
-    schedule_maybe_ping(state.stats.keepalive_interval)
-    schedule_check_keepalive(state.stats.keepalive_interval)
-
-    {:ok, state}
-  end
-
   @doc """
   Returns the internal state. Useful if you want to check the config parameters and state
   of the connection process.
@@ -112,6 +104,18 @@ defmodule Sink.Connection.ClientConnection do
   end
 
   # Server callbacks
+
+  def init(socket: socket, handler: handler) do
+    state = State.init(socket, handler, now())
+    schedule_maybe_ping(state.stats.keepalive_interval)
+    schedule_check_keepalive(state.stats.keepalive_interval)
+
+    {:ok, state}
+  end
+
+  def handle_call(:connection_status, _from, state) do
+    {:reply, {:connected, now() - state.stats.start_time}, state}
+  end
 
   def handle_call({:ack, message_id}, _from, state) do
     frame = Connection.Protocol.encode_frame(:ack, message_id)
@@ -199,7 +203,13 @@ defmodule Sink.Connection.ClientConnection do
             Connection.Protocol.decode_payload(:publish, payload)
 
           try do
-            handler.handle_publish({event_type_id, key}, offset, timestamp, event_data, message_id)
+            handler.handle_publish(
+              {event_type_id, key},
+              offset,
+              timestamp,
+              event_data,
+              message_id
+            )
           rescue
             e ->
               formatted = Exception.format(:error, e, __STACKTRACE__)
