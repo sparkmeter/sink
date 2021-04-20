@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.8.0] - 2021-04-20
 ### Added
 - Tracking of uptime/downtime for clients [CH49119]
 - Option to exclude topics from return of a subscription queue [CH42952]
