@@ -89,14 +89,6 @@ defmodule Sink.Connection.ServerHandler do
     def put_sent_nack(%State{} = state, message_id, ack_key, nack_data) do
       Map.update!(state, :inflight, &Inflight.put_sent_nack(&1, message_id, ack_key, nack_data))
     end
-
-    def received_nacks_by_event_type_id(%State{} = state) do
-      Inflight.received_nacks_by_event_type_id(state.inflight)
-    end
-
-    def sent_nacks_by_event_type_id(%State{} = state) do
-      Inflight.sent_nacks_by_event_type_id(state.inflight)
-    end
   end
 
   # Client
@@ -158,18 +150,6 @@ defmodule Sink.Connection.ServerHandler do
     client_id
     |> whereis()
     |> GenServer.call(:get_received_nacks)
-  end
-
-  def get_received_nacks_by_event_type_id(client_id) do
-    client_id
-    |> whereis()
-    |> GenServer.call(:get_received_nacks_by_event_type_id)
-  end
-
-  def get_sent_nacks_by_event_type_id(client_id) do
-    client_id
-    |> whereis()
-    |> GenServer.call(:get_sent_nacks_by_event_type_id)
   end
 
   @doc """
@@ -288,14 +268,6 @@ defmodule Sink.Connection.ServerHandler do
 
   def handle_call(:get_received_nacks, _from, state) do
     {:reply, State.get_received_nacks(state), state}
-  end
-
-  def handle_call(:get_received_nacks_by_event_type_id, _from, state) do
-    {:reply, State.received_nacks_by_event_type_id(state), state}
-  end
-
-  def handle_call(:get_sent_nacks_by_event_type_id, _from, state) do
-    {:reply, State.sent_nacks_by_event_type_id(state), state}
   end
 
   # keepalive

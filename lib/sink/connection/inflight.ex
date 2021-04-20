@@ -78,14 +78,6 @@ defmodule Sink.Connection.Inflight do
 
   def sent_nack_count(%__MODULE__{} = state), do: length(state.sent_nacks)
 
-  def received_nacks_by_event_type_id(%__MODULE__{} = state) do
-    group_nacks_by_event_type_id(state.received_nacks)
-  end
-
-  def sent_nacks_by_event_type_id(%__MODULE__{} = state) do
-    group_nacks_by_event_type_id(state.sent_nacks)
-  end
-
   defp next_message_id(nil) do
     Enum.random(0..@max_message_id)
   end
@@ -96,12 +88,5 @@ defmodule Sink.Connection.Inflight do
 
   defp next_message_id(message_id) do
     message_id + 1
-  end
-
-  defp group_nacks_by_event_type_id(nacks) do
-    nacks
-    |> Enum.frequencies_by(fn {_, {event_type_id, _, _}, _} ->
-      event_type_id
-    end)
   end
 end

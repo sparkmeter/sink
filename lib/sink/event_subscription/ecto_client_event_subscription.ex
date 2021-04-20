@@ -5,6 +5,7 @@ defmodule Sink.EventSubscription.EctoClientEventSubscription do
   import Ecto.Query, only: [from: 2]
   alias Sink.EventSubscription.Helper
   @default_limit 20
+  @default_nack_threshold 5
   @repo Application.fetch_env!(:sink, :ecto_repo)
 
   def get_offsets(subscription_table, {client_id, event_type_id, key}) do
@@ -89,10 +90,17 @@ defmodule Sink.EventSubscription.EctoClientEventSubscription do
   end
 
   def queue(subscription_table, config_table, client_id, opts \\ []) do
-    args = Enum.into(opts, %{inflight: [], limit: @default_limit, received_nacks: []})
+    args =
+      Enum.into(opts, %{
+        inflight: [],
+        limit: @default_limit,
+        nack_threshold: @default_nack_threshold,
+        received_nacks: []
+      })
 
     excluded_inflight_topics = Helper.get_excluded_inflight_topics(args.inflight)
     excluded_nack_topics = Helper.get_excluded_nack_topics(args.received_nacks)
+    nacked_event_types = Helper.get_nacked_event_types(args.received_nacks, args.nack_threshold)
 
     from(sub in subscription_table,
       where: sub.client_id == ^client_id,
@@ -109,18 +117,27 @@ defmodule Sink.EventSubscription.EctoClientEventSubscription do
       limit: ^args.limit
     )
     |> exclude_topics(excluded_inflight_topics ++ excluded_nack_topics)
+    |> exclude_nacked_event_types(nacked_event_types)
     |> @repo.all()
     |> Enum.map(fn {event_type_id, key, consumer_offset, producer_offset} ->
       {event_type_id, key, consumer_offset, producer_offset}
     end)
   end
 
-  def exclude_topics(query, []), do: query
+  defp exclude_topics(query, []), do: query
 
-  def exclude_topics(query, [{event_type_id, key} | tail]) do
+  defp exclude_topics(query, [{event_type_id, key} | tail]) do
     from(sub in query,
       where: not (sub.event_type_id == ^event_type_id and sub.key == ^key)
     )
     |> exclude_topics(tail)
+  end
+
+  defp exclude_nacked_event_types(query, []), do: query
+
+  defp exclude_nacked_event_types(query, nacked_event_types) do
+    from(sub in query,
+      where: sub.event_type_id not in ^nacked_event_types
+    )
   end
 end

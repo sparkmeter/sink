@@ -126,6 +126,21 @@ defmodule Sink.EventSubscription.EctoEventGenericSubscriptionTest do
              ] == result
     end
 
+    test "a nacked event type id is excluded from the queue" do
+      :ok = TestEctoGenericEventLog.log(@topic, @offset, {@event_data, @timestamp})
+      :ok = TestEctoGenericEventSubscription.subscribe(@topic, @offset)
+
+      result =
+        TestEctoGenericEventSubscription.queue(
+          received_nacks: [
+            {{@event_type_id, <<>>, 1}, @nack_data}
+          ],
+          nack_threshold: 1
+        )
+
+      assert [] == result
+    end
+
     test "queue (prioritization ordering)" do
       # event_type_id_order = [3,2,1,4]
       # event_type_id_order is defined in TestEctoEventTypeConfig

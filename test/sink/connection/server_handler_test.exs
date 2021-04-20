@@ -172,7 +172,6 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
 
-      assert %{1 => 1} == ServerHandler.State.sent_nacks_by_event_type_id(new_state)
       assert [{1234, ack_key, nack_data}] == new_state.inflight.sent_nacks
     end
 
@@ -292,9 +291,6 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
-
-      assert %{1 => 1} == ServerHandler.State.received_nacks_by_event_type_id(new_state)
-      assert [{100, ack_key, nack_data}] == new_state.inflight.received_nacks
 
       assert false == ServerHandler.State.inflight?(new_state, ack_key)
     end

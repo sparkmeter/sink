@@ -6,6 +6,7 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
   alias Sink.EventSubscription.Helper
   @repo Application.fetch_env!(:sink, :ecto_repo)
   @default_limit 20
+  @default_nack_threshold 5
 
   def get_offsets(subscription_table, {event_type_id, key}) do
     @repo.get_by(subscription_table,
@@ -84,17 +85,17 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
   end
 
   def queue(subscription_table, config_table, opts \\ []) do
-    opts = Keyword.merge([inflight: [], limit: @default_limit, received_nacks: []], opts)
+    args =
+      Enum.into(opts, %{
+        inflight: [],
+        limit: @default_limit,
+        nack_threshold: @default_nack_threshold,
+        received_nacks: []
+      })
 
-    excluded_inflight_topics =
-      opts
-      |> Keyword.get(:inflight)
-      |> Helper.get_excluded_inflight_topics()
-
-    excluded_nack_topics =
-      opts
-      |> Keyword.get(:received_nacks)
-      |> Helper.get_excluded_nack_topics()
+    excluded_inflight_topics = Helper.get_excluded_inflight_topics(args.inflight)
+    excluded_nack_topics = Helper.get_excluded_nack_topics(args.received_nacks)
+    nacked_event_types = Helper.get_nacked_event_types(args.received_nacks, args.nack_threshold)
 
     from(sub in subscription_table,
       where: sub.consumer_offset < sub.producer_offset,
@@ -107,9 +108,10 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
         sub.producer_offset
       },
       order_by: [asc: c.order],
-      limit: ^Keyword.get(opts, :limit)
+      limit: ^args.limit
     )
     |> exclude_topics(excluded_inflight_topics ++ excluded_nack_topics)
+    |> exclude_nacked_event_types(nacked_event_types)
     |> @repo.all()
     |> Enum.map(fn {event_type_id, key, consumer_offset, producer_offset} ->
       {event_type_id, key, consumer_offset, producer_offset}
@@ -123,5 +125,13 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
       where: not (sub.event_type_id == ^event_type_id and sub.key == ^key)
     )
     |> exclude_topics(tail)
+  end
+
+  defp exclude_nacked_event_types(query, []), do: query
+
+  defp exclude_nacked_event_types(query, nacked_event_types) do
+    from(sub in query,
+      where: sub.event_type_id not in ^nacked_event_types
+    )
   end
 end

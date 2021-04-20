@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Tracking of uptime/downtime for clients [CH49119]
 - Option to exclude topics from return of a subscription queue [CH42952]
 - Option to set a limit on the number records returned for a subscription queue [CH42952]
+- Nack thresholds for event type ids [CH42952]
 
 
 ## [0.7.0] - 2021-04-13
