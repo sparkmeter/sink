@@ -34,4 +34,8 @@ defmodule Sink.EventSubscription.TestEctoGenericEventSubscription do
   def queue() do
     EctoGenericEventSubscription.queue(__MODULE__, Sink.TestEctoEventTypeConfig)
   end
+
+  def queue(opts) do
+    EctoGenericEventSubscription.queue(__MODULE__, Sink.TestEctoEventTypeConfig, opts)
+  end
 end

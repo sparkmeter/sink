@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 ### Added
-- Tracking of uptime/downtime [CH49119]
+- Tracking of uptime/downtime for clients [CH49119]
+- Option to exclude topics from return of a subscription queue [CH42952]
+- Option to set a limit on the number records returned for a subscription queue [CH42952]
+
+
+## [0.7.0] - 2021-04-13
 ### Fixed
 - Bug in keepalive for Sink Servers and Clients
 
@@ -43,6 +48,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Update CustomerMeterBill for monthly plans and rename to CustomerMeterTransaction[CH48073]
 - Removed Slim
 
-### Fixes
+### Fixed
 - If a client is connected and the same client attempts to connect this will kill the previous connection and boot that client.
 - Moved to encode_plain/decode_plain API of avrora and updated to upstream 0.18 [CH45912]

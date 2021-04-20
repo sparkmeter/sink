@@ -21,6 +21,16 @@ defmodule Sink.Connection.Inflight do
     Map.put(state, :next_message_id, next_message_id(state.next_message_id))
   end
 
+  @doc """
+  Get the event_type_id, key, and offset of messages that are sent, but not ACK'd or NACK'd
+
+  Note: results will be returned in an arbitrary order since the underlying data structure
+  is a map.
+  """
+  def get_inflight(%__MODULE__{} = state) do
+    Map.values(state.inflight)
+  end
+
   def put_inflight(%__MODULE__{} = state, {event_id, key, offset}) do
     state
     |> Map.put(:inflight, Map.put(state.inflight, state.next_message_id, {event_id, key, offset}))
@@ -39,13 +49,28 @@ defmodule Sink.Connection.Inflight do
     Map.put(state, :inflight, Map.delete(state.inflight, message_id))
   end
 
+  def get_received_nacks(%__MODULE__{} = state) do
+    Enum.map(state.received_nacks, fn {_message_id, ack_key, nack_data} ->
+      {ack_key, nack_data}
+    end)
+  end
+
+  @doc """
+  Mark a message that was sent by this connection as NACK'd, remove from inflight
+  """
   def put_received_nack(%__MODULE__{} = state, message_id, ack_key, nack_data) do
     nack = {message_id, ack_key, nack_data}
-    %__MODULE__{state | received_nacks: [nack | state.received_nacks]}
+
+    state
+    |> Map.put(:received_nacks, [nack | state.received_nacks])
+    |> remove_inflight(message_id)
   end
 
   def received_nack_count(%__MODULE__{} = state), do: length(state.received_nacks)
 
+  @doc """
+  Mark a message that was sent to this connection as NACK'd
+  """
   def put_sent_nack(%__MODULE__{} = state, message_id, ack_key, nack_data) do
     nack = {message_id, ack_key, nack_data}
     %__MODULE__{state | sent_nacks: [nack | state.sent_nacks]}

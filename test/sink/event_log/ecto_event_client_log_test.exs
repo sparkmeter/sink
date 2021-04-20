@@ -29,8 +29,19 @@ defmodule Sink.EventLog.EctoClientEventLogTest do
     end
 
     test "gets latest" do
-      assert :ok = TestEctoClientEventLog.log({@client_id, @event_type_id, @event_key}, 1, {<<1>>, @timestamp})
-      assert :ok = TestEctoClientEventLog.log({@client_id, @event_type_id, @event_key}, 2, {<<2>>, @timestamp})
+      assert :ok =
+               TestEctoClientEventLog.log(
+                 {@client_id, @event_type_id, @event_key},
+                 1,
+                 {<<1>>, @timestamp}
+               )
+
+      assert :ok =
+               TestEctoClientEventLog.log(
+                 {@client_id, @event_type_id, @event_key},
+                 2,
+                 {<<2>>, @timestamp}
+               )
 
       assert {2, <<2>>, @timestamp} ==
                TestEctoClientEventLog.get_latest({@client_id, @event_type_id, @event_key})
@@ -72,7 +83,11 @@ defmodule Sink.EventLog.EctoClientEventLogTest do
                )
 
       assert {:error, :data_mismatch, {@event_data, @timestamp}} =
-               TestEctoClientEventLog.check_dupe({@client_id, @event_type_id, @event_key}, 1, {2, @timestamp})
+               TestEctoClientEventLog.check_dupe(
+                 {@client_id, @event_type_id, @event_key},
+                 1,
+                 {2, @timestamp}
+               )
     end
 
     test "is {:error, :data_mismatch, _data} for a record that exists with different timestamp" do
@@ -84,7 +99,11 @@ defmodule Sink.EventLog.EctoClientEventLogTest do
                )
 
       assert {:error, :data_mismatch, {@event_data, @timestamp}} =
-               TestEctoClientEventLog.check_dupe({@client_id, @event_type_id, @event_key}, 1, {@event_data, 2})
+               TestEctoClientEventLog.check_dupe(
+                 {@client_id, @event_type_id, @event_key},
+                 1,
+                 {@event_data, 2}
+               )
     end
   end
 end

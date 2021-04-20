@@ -3,7 +3,9 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
   Documentation for `Sink`.
   """
   import Ecto.Query, only: [from: 2]
+  alias Sink.EventSubscription.Helper
   @repo Application.fetch_env!(:sink, :ecto_repo)
+  @default_limit 20
 
   def get_offsets(subscription_table, {event_type_id, key}) do
     @repo.get_by(subscription_table,
@@ -81,7 +83,19 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
     end
   end
 
-  def queue(subscription_table, config_table) do
+  def queue(subscription_table, config_table, opts \\ []) do
+    opts = Keyword.merge([inflight: [], limit: @default_limit, received_nacks: []], opts)
+
+    excluded_inflight_topics =
+      opts
+      |> Keyword.get(:inflight)
+      |> Helper.get_excluded_inflight_topics()
+
+    excluded_nack_topics =
+      opts
+      |> Keyword.get(:received_nacks)
+      |> Helper.get_excluded_nack_topics()
+
     from(sub in subscription_table,
       where: sub.consumer_offset < sub.producer_offset,
       join: c in ^config_table,
@@ -92,11 +106,22 @@ defmodule Sink.EventSubscription.EctoGenericEventSubscription do
         sub.consumer_offset,
         sub.producer_offset
       },
-      order_by: [asc: c.order]
+      order_by: [asc: c.order],
+      limit: ^Keyword.get(opts, :limit)
     )
+    |> exclude_topics(excluded_inflight_topics ++ excluded_nack_topics)
     |> @repo.all()
     |> Enum.map(fn {event_type_id, key, consumer_offset, producer_offset} ->
       {event_type_id, key, consumer_offset, producer_offset}
     end)
+  end
+
+  def exclude_topics(query, []), do: query
+
+  def exclude_topics(query, [{event_type_id, key} | tail]) do
+    from(sub in query,
+      where: not (sub.event_type_id == ^event_type_id and sub.key == ^key)
+    )
+    |> exclude_topics(tail)
   end
 end

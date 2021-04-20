@@ -35,7 +35,8 @@ defmodule Sink.EventLog.EctoGenericEventLog do
     end
   end
 
-  @spec get_latest(any(), {non_neg_integer(), binary()}) :: nil | {non_neg_integer(), binary(), non_neg_integer()}
+  @spec get_latest(any(), {non_neg_integer(), binary()}) ::
+          nil | {non_neg_integer(), binary(), non_neg_integer()}
   def get_latest(event_log, {event_type_id, key}) do
     from(e_log in event_log,
       where: e_log.event_type_id == ^event_type_id and e_log.key == ^key,

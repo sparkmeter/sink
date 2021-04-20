@@ -110,7 +110,10 @@ defmodule Sink.Connection.ServerHandlerTest do
       offset = 42
       event_data = <<9, 8, 7>>
       message_id = 1234
-      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
+
+      payload =
+        Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
+
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
       @mod_transport
@@ -139,7 +142,10 @@ defmodule Sink.Connection.ServerHandlerTest do
       ack_key = {event_type_id, key, offset}
       event_data = <<9, 8, 7>>
       message_id = 1234
-      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
+
+      payload =
+        Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
+
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
       nack_data = {<<0, 0, 0>>, "crash!"}
 
@@ -176,7 +182,10 @@ defmodule Sink.Connection.ServerHandlerTest do
       offset = 42
       event_data = <<9, 8, 7>>
       message_id = 1234
-      payload = Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
+
+      payload =
+        Protocol.encode_payload(:publish, {event_type_id, key, offset, @unix_now, event_data})
+
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
       # expect a NACK
@@ -287,7 +296,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert %{1 => 1} == ServerHandler.State.received_nacks_by_event_type_id(new_state)
       assert [{100, ack_key, nack_data}] == new_state.inflight.received_nacks
 
-      assert true == ServerHandler.State.inflight?(new_state, ack_key)
+      assert false == ServerHandler.State.inflight?(new_state, ack_key)
     end
   end
 end

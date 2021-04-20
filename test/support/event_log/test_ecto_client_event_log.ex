@@ -15,7 +15,12 @@ defmodule Sink.EventLog.TestEctoClientEventLog do
 
   # @impl true
   def check_dupe({client_id, event_type_id, key}, offset, {event_data, timestamp}) do
-    EctoClientEventLog.check_dupe(__MODULE__, {client_id, event_type_id, key}, offset, {event_data, timestamp})
+    EctoClientEventLog.check_dupe(
+      __MODULE__,
+      {client_id, event_type_id, key},
+      offset,
+      {event_data, timestamp}
+    )
   end
 
   # @impl true
@@ -30,6 +35,11 @@ defmodule Sink.EventLog.TestEctoClientEventLog do
 
   # @impl true
   def log({client_id, event_type_id, key}, offset, {event_data, timestamp}) do
-    EctoClientEventLog.log(__MODULE__, {client_id, event_type_id, key}, offset, {event_data, timestamp})
+    EctoClientEventLog.log(
+      __MODULE__,
+      {client_id, event_type_id, key},
+      offset,
+      {event_data, timestamp}
+    )
   end
 end

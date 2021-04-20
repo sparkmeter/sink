@@ -28,6 +28,10 @@ defmodule Sink.Connection.ClientConnection do
       }
     end
 
+    def get_inflight(%State{} = state) do
+      Inflight.get_inflight(state.inflight)
+    end
+
     def put_inflight(%State{} = state, ack_key) do
       %State{state | inflight: Inflight.put_inflight(state.inflight, ack_key)}
     end
@@ -58,6 +62,10 @@ defmodule Sink.Connection.ClientConnection do
 
     def alive?(%State{} = state, now) do
       Stats.alive?(state.stats, now)
+    end
+
+    def get_received_nacks(%State{} = state) do
+      Inflight.get_received_nacks(state.inflight)
     end
 
     def put_received_nack(%State{} = state, message_id, ack_key, nack_data) do
@@ -93,6 +101,14 @@ defmodule Sink.Connection.ClientConnection do
   """
   def info do
     :sys.get_state(Process.whereis(__MODULE__))
+  end
+
+  def get_inflight() do
+    GenServer.call(__MODULE__, :get_inflight)
+  end
+
+  def get_received_nacks() do
+    GenServer.call(__MODULE__, :get_received_nacks)
   end
 
   def get_received_nacks_by_event_type_id() do
@@ -140,6 +156,14 @@ defmodule Sink.Connection.ClientConnection do
 
       {:reply, :ok, new_state}
     end
+  end
+
+  def handle_call(:get_inflight, _from, state) do
+    {:reply, State.get_inflight(state), state}
+  end
+
+  def handle_call(:get_received_nacks, _from, state) do
+    {:reply, State.get_received_nacks(state), state}
   end
 
   def handle_call(:get_received_nacks_by_event_type_id, _from, state) do

@@ -42,6 +42,10 @@ defmodule Sink.Connection.ServerHandler do
       }
     end
 
+    def get_inflight(%State{} = state) do
+      Inflight.get_inflight(state.inflight)
+    end
+
     def put_inflight(%State{} = state, ack_key) do
       %State{state | inflight: Inflight.put_inflight(state.inflight, ack_key)}
     end
@@ -68,6 +72,10 @@ defmodule Sink.Connection.ServerHandler do
 
     def alive?(%State{} = state, now) do
       Stats.alive?(state.stats, now)
+    end
+
+    def get_received_nacks(%State{} = state) do
+      Inflight.get_received_nacks(state.inflight)
     end
 
     def put_received_nack(%State{} = state, message_id, ack_key, nack_data) do
@@ -138,6 +146,18 @@ defmodule Sink.Connection.ServerHandler do
       [] -> false
       [{_pid, _}] -> true
     end
+  end
+
+  def get_inflight(client_id) do
+    client_id
+    |> whereis()
+    |> GenServer.call(:get_inflight)
+  end
+
+  def get_received_nacks(client_id) do
+    client_id
+    |> whereis()
+    |> GenServer.call(:get_received_nacks)
   end
 
   def get_received_nacks_by_event_type_id(client_id) do
@@ -260,6 +280,14 @@ defmodule Sink.Connection.ServerHandler do
       :ok = @mod_transport.send(state.socket, encoded)
       {:reply, :ok, State.put_inflight(state, ack_key)}
     end
+  end
+
+  def handle_call(:get_inflight, _from, state) do
+    {:reply, State.get_inflight(state), state}
+  end
+
+  def handle_call(:get_received_nacks, _from, state) do
+    {:reply, State.get_received_nacks(state), state}
   end
 
   def handle_call(:get_received_nacks_by_event_type_id, _from, state) do

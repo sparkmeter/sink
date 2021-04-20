@@ -3,6 +3,8 @@ defmodule Sink.EventSubscription.EctoClientEventSubscription do
   Documentation for `Sink`.
   """
   import Ecto.Query, only: [from: 2]
+  alias Sink.EventSubscription.Helper
+  @default_limit 20
   @repo Application.fetch_env!(:sink, :ecto_repo)
 
   def get_offsets(subscription_table, {client_id, event_type_id, key}) do
@@ -86,7 +88,12 @@ defmodule Sink.EventSubscription.EctoClientEventSubscription do
     end
   end
 
-  def queue(subscription_table, config_table, client_id) do
+  def queue(subscription_table, config_table, client_id, opts \\ []) do
+    args = Enum.into(opts, %{inflight: [], limit: @default_limit, received_nacks: []})
+
+    excluded_inflight_topics = Helper.get_excluded_inflight_topics(args.inflight)
+    excluded_nack_topics = Helper.get_excluded_nack_topics(args.received_nacks)
+
     from(sub in subscription_table,
       where: sub.client_id == ^client_id,
       where: sub.consumer_offset < sub.producer_offset,
@@ -98,11 +105,22 @@ defmodule Sink.EventSubscription.EctoClientEventSubscription do
         sub.consumer_offset,
         sub.producer_offset
       },
-      order_by: [asc: c.order]
+      order_by: [asc: c.order],
+      limit: ^args.limit
     )
+    |> exclude_topics(excluded_inflight_topics ++ excluded_nack_topics)
     |> @repo.all()
     |> Enum.map(fn {event_type_id, key, consumer_offset, producer_offset} ->
       {event_type_id, key, consumer_offset, producer_offset}
     end)
+  end
+
+  def exclude_topics(query, []), do: query
+
+  def exclude_topics(query, [{event_type_id, key} | tail]) do
+    from(sub in query,
+      where: not (sub.event_type_id == ^event_type_id and sub.key == ^key)
+    )
+    |> exclude_topics(tail)
   end
 end
