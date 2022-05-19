@@ -253,18 +253,10 @@ defmodule Sink.Connection.ClientConnection do
           {new_state, nil}
 
         {:publish, message_id, payload} ->
-          {event_type_id, schema_version, key, offset, timestamp, event_data} =
-            Protocol.decode_payload(:publish, payload)
+          event = Protocol.decode_payload(:publish, payload)
 
           try do
-            handler.handle_publish(
-              {event_type_id, key},
-              offset,
-              schema_version,
-              timestamp,
-              event_data,
-              message_id
-            )
+            handler.handle_publish(event, message_id)
           catch
             kind, e ->
               formatted = Exception.format(kind, e, __STACKTRACE__)
@@ -278,7 +270,7 @@ defmodule Sink.Connection.ClientConnection do
 
             {:nack, {machine_message, human_message}} ->
               nack_data = {machine_message, human_message}
-              ack_key = {event_type_id, key, offset}
+              ack_key = {event.event_type_id, event.key, event.offset}
               nack_payload = Protocol.encode_payload(:nack, nack_data)
               frame = Protocol.encode_frame(:nack, message_id, nack_payload)
 

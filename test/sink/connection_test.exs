@@ -6,10 +6,18 @@ defmodule Sink.ConnectionTest do
   alias Sink.Connection.ServerConnectionHandlerMock
   alias Sink.Connection.Transport.SSLMock
   alias Sink.Event
-  alias Sink.TestEvent
   alias Sink.Test.Certificates
 
   @client_id "abc123"
+  @event %Event{
+    event_type_id: 1,
+    key: <<1, 2, 3>>,
+    offset: 1,
+    timestamp: DateTime.to_unix(DateTime.utc_now()),
+    event_data: :erlang.term_to_binary(%{message: "hi!"}),
+    schema_version: 1
+  }
+  @ack_key {@event.event_type_id, @event.key, @event.offset}
 
   setup :set_mox_global
   setup :verify_on_exit!
@@ -88,8 +96,8 @@ defmodule Sink.ConnectionTest do
     expect(
       ClientConnectionHandlerMock,
       :handle_publish,
-      fn topic, offset, schema_version, timestamp, data, _message_id ->
-        send(test, {{:client, :publish}, topic, offset, schema_version, timestamp, data})
+      fn event, _message_id ->
+        send(test, {{:client, :publish}, event})
         :ack
       end
     )
@@ -115,34 +123,13 @@ defmodule Sink.ConnectionTest do
     assert Sink.Connection.Client.connected?()
     assert Sink.Connection.ServerHandler.connected?(@client_id)
 
-    # send the message
-    event = %TestEvent{key: <<1, 2, 3>>, offset: 1, message: "hi!", version: 1}
-    event_data = :erlang.term_to_binary(event)
-    event_type_id = 1
-    ack_key = {event_type_id, event.key, event.offset}
-    timestamp = DateTime.to_unix(DateTime.utc_now())
-
-    message = %Event{
-      event_type_id: event_type_id,
-      key: event.key,
-      offset: event.offset,
-      timestamp: timestamp,
-      event_data: event_data,
-      schema_version: event.version
-    }
-
-    Sink.Connection.ServerHandler.publish(@client_id, message, ack_key)
+    # send the event
+    Sink.Connection.ServerHandler.publish(@client_id, @event, @ack_key)
 
     Process.sleep(100)
 
-    assert_received {{:client, :publish}, topic, offset, schema_version, timestamp, data}
-    assert topic == {event_type_id, event.key}
-    assert offset == event.offset
-    assert schema_version == event.version
-    assert timestamp == timestamp
-    assert data == event_data
-
-    assert_received {:ack, "abc123", ^ack_key}
+    assert_received {{:client, :publish}, @event}
+    assert_received {:ack, "abc123", @ack_key}
 
     stop_supervised!(Sink.Connection.Client)
     stop_supervised!(Sink.Connection.ServerListener)
@@ -164,8 +151,8 @@ defmodule Sink.ConnectionTest do
     expect(
       ClientConnectionHandlerMock,
       :handle_publish,
-      fn topic, offset, schema_version, timestamp, data, _message_id ->
-        send(test, {{:client, :publish}, topic, offset, schema_version, timestamp, data})
+      fn event, _message_id ->
+        send(test, {{:client, :publish}, event})
         raise RuntimeError, "nack reason"
       end
     )
@@ -191,34 +178,13 @@ defmodule Sink.ConnectionTest do
     assert Sink.Connection.Client.connected?()
     assert Sink.Connection.ServerHandler.connected?(@client_id)
 
-    # send the message
-    event = %TestEvent{key: <<1, 2, 3>>, offset: 1, message: "hi!", version: 1}
-    event_data = :erlang.term_to_binary(event)
-    event_type_id = 1
-    ack_key = {event_type_id, event.key, event.offset}
-    timestamp = DateTime.to_unix(DateTime.utc_now())
-
-    message = %Event{
-      event_type_id: event_type_id,
-      key: event.key,
-      offset: event.offset,
-      timestamp: timestamp,
-      event_data: event_data,
-      schema_version: event.version
-    }
-
-    Sink.Connection.ServerHandler.publish(@client_id, message, ack_key)
+    # send the event
+    Sink.Connection.ServerHandler.publish(@client_id, @event, @ack_key)
 
     Process.sleep(100)
 
-    assert_received {{:client, :publish}, topic, offset, schema_version, timestamp, data}
-    assert topic == {event_type_id, event.key}
-    assert offset == event.offset
-    assert schema_version == event.version
-    assert timestamp == timestamp
-    assert data == event_data
-
-    assert_received {:nack, "abc123", ^ack_key, {_machine, human}}
+    assert_received {{:client, :publish}, @event}
+    assert_received {:nack, "abc123", @ack_key, {_machine, human}}
     assert human =~ "nack reason"
 
     stop_supervised!(Sink.Connection.Client)
@@ -240,8 +206,8 @@ defmodule Sink.ConnectionTest do
     expect(
       ServerConnectionHandlerMock,
       :handle_publish,
-      fn topic, offset, schema_version, timestamp, data, _message_id ->
-        send(test, {{:server, :publish}, topic, offset, schema_version, timestamp, data})
+      fn _client_id, event, _message_id ->
+        send(test, {{:server, :publish}, event})
         :ack
       end
     )
@@ -267,34 +233,13 @@ defmodule Sink.ConnectionTest do
     assert Sink.Connection.Client.connected?()
     assert Sink.Connection.ServerHandler.connected?(@client_id)
 
-    # send the message
-    event = %TestEvent{key: <<1, 2, 3>>, offset: 1, message: "hi!", version: 1}
-    event_data = :erlang.term_to_binary(event)
-    event_type_id = 1
-    ack_key = {event_type_id, event.key, event.offset}
-    timestamp = DateTime.to_unix(DateTime.utc_now())
-
-    message = %Event{
-      event_type_id: event_type_id,
-      key: event.key,
-      offset: event.offset,
-      timestamp: timestamp,
-      event_data: event_data,
-      schema_version: event.version
-    }
-
-    Sink.Connection.Client.publish(message, ack_key)
+    # send the event
+    Sink.Connection.Client.publish(@event, @ack_key)
 
     Process.sleep(100)
 
-    assert_received {{:server, :publish}, topic, offset, schema_version, timestamp, data}
-    assert topic == {"abc123", event_type_id, event.key}
-    assert offset == event.offset
-    assert schema_version == event.version
-    assert timestamp == timestamp
-    assert data == event_data
-
-    assert_received {:ack, ^ack_key}
+    assert_received {{:server, :publish}, @event}
+    assert_received {:ack, @ack_key}
 
     stop_supervised!(Sink.Connection.Client)
     stop_supervised!(Sink.Connection.ServerListener)
@@ -316,8 +261,8 @@ defmodule Sink.ConnectionTest do
     expect(
       ServerConnectionHandlerMock,
       :handle_publish,
-      fn topic, offset, schema_version, timestamp, data, _message_id ->
-        send(test, {{:server, :publish}, topic, offset, schema_version, timestamp, data})
+      fn _client_id, event, _message_id ->
+        send(test, {{:server, :publish}, event})
         raise RuntimeError, "nack reason"
       end
     )
@@ -343,34 +288,13 @@ defmodule Sink.ConnectionTest do
     assert Sink.Connection.Client.connected?()
     assert Sink.Connection.ServerHandler.connected?(@client_id)
 
-    # send the message
-    event = %TestEvent{key: <<1, 2, 3>>, offset: 1, message: "hi!", version: 1}
-    event_data = :erlang.term_to_binary(event)
-    event_type_id = 1
-    ack_key = {event_type_id, event.key, event.offset}
-    timestamp = DateTime.to_unix(DateTime.utc_now())
-
-    message = %Event{
-      event_type_id: event_type_id,
-      key: event.key,
-      offset: event.offset,
-      timestamp: timestamp,
-      event_data: event_data,
-      schema_version: event.version
-    }
-
-    Sink.Connection.Client.publish(message, ack_key)
+    # send the event
+    Sink.Connection.Client.publish(@event, @ack_key)
 
     Process.sleep(100)
 
-    assert_received {{:server, :publish}, topic, offset, schema_version, timestamp, data}
-    assert topic == {"abc123", event_type_id, event.key}
-    assert offset == event.offset
-    assert schema_version == event.version
-    assert timestamp == timestamp
-    assert data == event_data
-
-    assert_received {:nack, ^ack_key, {_machine, human}}
+    assert_received {{:server, :publish}, @event}
+    assert_received {:nack, @ack_key, {_machine, human}}
     assert human =~ "nack reason"
 
     stop_supervised!(Sink.Connection.Client)
@@ -392,8 +316,8 @@ defmodule Sink.ConnectionTest do
     expect(
       ServerConnectionHandlerMock,
       :handle_publish,
-      fn topic, offset, schema_version, timestamp, data, _message_id ->
-        send(test, {{:server, :publish}, topic, offset, schema_version, timestamp, data})
+      fn _client_id, event, _message_id ->
+        send(test, {{:server, :publish}, event})
         :ack
       end
     )
@@ -419,36 +343,15 @@ defmodule Sink.ConnectionTest do
     assert Sink.Connection.Client.connected?()
     assert Sink.Connection.ServerHandler.connected?(@client_id)
 
-    # send the message
-    event = %TestEvent{key: <<1, 2, 3>>, offset: 1, message: "hi!", version: 1}
-    event_data = :erlang.term_to_binary(event)
-    event_type_id = 1
-    ack_key = {event_type_id, event.key, event.offset}
-    timestamp = DateTime.to_unix(DateTime.utc_now())
-
-    message = %Event{
-      event_type_id: event_type_id,
-      key: event.key,
-      offset: event.offset,
-      timestamp: timestamp,
-      event_data: event_data,
-      schema_version: event.version
-    }
-
-    Sink.Connection.Client.publish(message, ack_key)
+    # send the event
+    Sink.Connection.Client.publish(@event, @ack_key)
 
     Process.sleep(100)
 
-    assert_received {{:server, :publish}, topic, offset, schema_version, timestamp, data}
-    assert topic == {"abc123", event_type_id, event.key}
-    assert offset == event.offset
-    assert schema_version == event.version
-    assert timestamp == timestamp
-    assert data == event_data
+    assert_received {{:server, :publish}, @event}
+    assert_received {:ack, @ack_key}
 
-    assert_received {:ack, ^ack_key}
-
-    assert Sink.Connection.Freshness.get_freshness("abc123", 1) == timestamp
+    assert Sink.Connection.Freshness.get_freshness("abc123", 1) == @event.timestamp
 
     stop_supervised!(Sink.Connection.Client)
     stop_supervised!(Sink.Connection.ServerListener)

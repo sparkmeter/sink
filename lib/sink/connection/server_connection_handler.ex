@@ -45,12 +45,6 @@ defmodule Sink.Connection.ServerConnectionHandler do
 
   Should respond with either an ack or a nack with information about the nack
   """
-  @callback handle_publish(
-              {client_id(), event_type_id(), key()},
-              offset(),
-              schema_version(),
-              timestamp(),
-              event_data(),
-              message_id()
-            ) :: :ack | {:nack, nack_data()}
+  @callback handle_publish(client_id(), Sink.Event.t(), message_id()) ::
+              :ack | {:nack, nack_data()}
 end

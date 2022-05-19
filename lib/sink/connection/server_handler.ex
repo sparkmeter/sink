@@ -336,19 +336,11 @@ defmodule Sink.Connection.ServerHandler do
           {new_state, nil}
 
         {:publish, message_id, payload} ->
-          {event_type_id, schema_version, key, offset, timestamp, event_data} =
-            Connection.Protocol.decode_payload(:publish, payload)
+          event = Connection.Protocol.decode_payload(:publish, payload)
 
           # send the event to handler
           try do
-            handler.handle_publish(
-              {client_id, event_type_id, key},
-              offset,
-              schema_version,
-              timestamp,
-              event_data,
-              message_id
-            )
+            handler.handle_publish(client_id, event, message_id)
           catch
             kind, e ->
               formatted = Exception.format(kind, e, __STACKTRACE__)
@@ -358,18 +350,21 @@ defmodule Sink.Connection.ServerHandler do
           |> case do
             :ack ->
               frame = Protocol.encode_frame(:ack, message_id)
-              :ok = Sink.Connection.Freshness.update(client_id, event_type_id, timestamp)
+
+              :ok =
+                Sink.Connection.Freshness.update(client_id, event.event_type_id, event.timestamp)
+
               {state, {:ack, frame}}
 
             {:nack, nack_data} ->
-              ack_key = {event_type_id, key, offset}
+              ack_key = {event.event_type_id, event.key, event.offset}
               payload = Protocol.encode_payload(:nack, nack_data)
               frame = Protocol.encode_frame(:nack, message_id, payload)
 
               after_send = fn state ->
                 Sink.Telemetry.nack(:sent, %{
                   client_id: state.client_id,
-                  event_type_id: event_type_id
+                  event_type_id: event.event_type_id
                 })
 
                 State.put_sent_nack(state, message_id, ack_key, nack_data)

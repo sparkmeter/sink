@@ -97,7 +97,7 @@ defmodule Sink.Connection.ProtocolTest do
 
   describe "encode_payload (publish)" do
     test "encodes an event with an event_type_id, key, and event_data" do
-      message = %Event{
+      event = %Event{
         event_type_id: 1,
         key: <<1, 2>>,
         offset: 9,
@@ -106,7 +106,7 @@ defmodule Sink.Connection.ProtocolTest do
         schema_version: 3
       }
 
-      payload = Protocol.encode_payload(:publish, message)
+      payload = Protocol.encode_payload(:publish, event)
 
       expected = <<1, 3, 2, 1, 2, 9, 237, 133, 204, 131, 6, 1, 0>>
       assert expected == payload
@@ -119,8 +119,14 @@ defmodule Sink.Connection.ProtocolTest do
 
       event = Protocol.decode_payload(:publish, payload)
 
-      expected = {1, 3, <<1, 2>>, 9, @unix_now, <<0>>}
-      assert expected == event
+      assert %Event{
+               event_type_id: 1,
+               key: <<1, 2>>,
+               offset: 9,
+               timestamp: @unix_now,
+               event_data: <<0>>,
+               schema_version: 3
+             } == event
     end
   end
 end

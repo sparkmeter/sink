@@ -43,15 +43,15 @@ defmodule Sink.Connection.Protocol do
     end
   end
 
-  def encode_payload(:publish, %Event{} = message) do
-    Varint.LEB128.encode(message.event_type_id) <>
-      Varint.LEB128.encode(message.schema_version) <>
-      Varint.LEB128.encode(byte_size(message.key)) <>
-      message.key <>
-      Varint.LEB128.encode(message.offset) <>
-      Varint.LEB128.encode(message.timestamp) <>
-      Varint.LEB128.encode(byte_size(message.event_data)) <>
-      message.event_data
+  def encode_payload(:publish, %Event{} = event) do
+    Varint.LEB128.encode(event.event_type_id) <>
+      Varint.LEB128.encode(event.schema_version) <>
+      Varint.LEB128.encode(byte_size(event.key)) <>
+      event.key <>
+      Varint.LEB128.encode(event.offset) <>
+      Varint.LEB128.encode(event.timestamp) <>
+      Varint.LEB128.encode(byte_size(event.event_data)) <>
+      event.event_data
   end
 
   def encode_payload(:nack, {machine_message, human_message}) do
@@ -78,6 +78,13 @@ defmodule Sink.Connection.Protocol do
     {timestamp, rest} = Varint.LEB128.decode(rest)
     {event_data, <<>>} = Helpers.decode_chunk(rest)
 
-    {event_type_id, schema_version, key, offset, timestamp, event_data}
+    %Event{
+      event_type_id: event_type_id,
+      schema_version: schema_version,
+      key: key,
+      offset: offset,
+      timestamp: timestamp,
+      event_data: event_data
+    }
   end
 end

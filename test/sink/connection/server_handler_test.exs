@@ -110,23 +110,18 @@ defmodule Sink.Connection.ServerHandlerTest do
 
   describe "receiving (publish)" do
     test "with good data decodes and forwards to handler, then acks" do
-      event_type_id = 1
-      schema_version = 1
-      key = <<1, 2>>
-      offset = 42
-      event_data = <<9, 8, 7>>
-      message_id = 1234
-
-      message = %Event{
-        event_type_id: event_type_id,
-        key: key,
-        offset: offset,
+      event = %Event{
+        event_type_id: 1,
+        key: <<1, 2>>,
+        offset: 42,
         timestamp: @unix_now,
-        event_data: event_data,
-        schema_version: schema_version
+        event_data: <<9, 8, 7>>,
+        schema_version: 1
       }
 
-      payload = Protocol.encode_payload(:publish, message)
+      message_id = 1234
+
+      payload = Protocol.encode_payload(:publish, event)
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
       @mod_transport
@@ -135,14 +130,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn {"test-client", ^event_type_id, ^key},
-           ^offset,
-           ^schema_version,
-           @unix_now,
-           ^event_data,
-           ^message_id ->
-          :ack
-        end
+        fn "test-client", ^event, ^message_id -> :ack end
       )
 
       assert {:noreply, new_state} =
@@ -153,24 +141,19 @@ defmodule Sink.Connection.ServerHandlerTest do
     end
 
     test "with a handler returns a nack" do
-      event_type_id = 1
-      schema_version = 1
-      key = <<1, 2>>
-      offset = 42
-      ack_key = {event_type_id, key, offset}
-      event_data = <<9, 8, 7>>
-      message_id = 1234
-
-      message = %Event{
-        event_type_id: event_type_id,
-        key: key,
-        offset: offset,
+      event = %Event{
+        event_type_id: 1,
+        key: <<1, 2>>,
+        offset: 42,
         timestamp: @unix_now,
-        event_data: event_data,
-        schema_version: schema_version
+        event_data: <<9, 8, 7>>,
+        schema_version: 1
       }
 
-      payload = Protocol.encode_payload(:publish, message)
+      ack_key = {event.event_type_id, event.key, event.offset}
+      message_id = 1234
+
+      payload = Protocol.encode_payload(:publish, event)
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
       nack_data = {<<0, 0, 0>>, "crash!"}
 
@@ -186,14 +169,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn {"test-client", ^event_type_id, ^key},
-           ^offset,
-           ^schema_version,
-           @unix_now,
-           ^event_data,
-           ^message_id ->
-          {:nack, nack_data}
-        end
+        fn "test-client", ^event, ^message_id -> {:nack, nack_data} end
       )
 
       state = @sample_state
@@ -205,23 +181,18 @@ defmodule Sink.Connection.ServerHandlerTest do
     end
 
     test "if the SinkHandler raises an error we send a NACK" do
-      event_type_id = 1
-      schema_version = 1
-      key = <<1, 2>>
-      offset = 42
-      event_data = <<9, 8, 7>>
-      message_id = 1234
-
-      message = %Event{
-        event_type_id: event_type_id,
-        key: key,
-        offset: offset,
+      event = %Event{
+        event_type_id: 1,
+        key: <<1, 2>>,
+        offset: 42,
         timestamp: @unix_now,
-        event_data: event_data,
-        schema_version: schema_version
+        event_data: <<9, 8, 7>>,
+        schema_version: 1
       }
 
-      payload = Protocol.encode_payload(:publish, message)
+      message_id = 1234
+
+      payload = Protocol.encode_payload(:publish, event)
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
       # expect a NACK
@@ -240,12 +211,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn {"test-client", ^event_type_id, ^key},
-           ^offset,
-           ^schema_version,
-           @unix_now,
-           ^event_data,
-           ^message_id ->
+        fn "test-client", ^event, ^message_id ->
           raise(ArgumentError, message: "boom")
         end
       )
@@ -264,23 +230,18 @@ defmodule Sink.Connection.ServerHandlerTest do
     end
 
     test "if the SinkHandler throws an error we send a NACK" do
-      event_type_id = 1
-      schema_version = 1
-      key = <<1, 2>>
-      offset = 42
-      event_data = <<9, 8, 7>>
-      message_id = 1234
-
-      message = %Event{
-        event_type_id: event_type_id,
-        key: key,
-        offset: offset,
+      event = %Event{
+        event_type_id: 1,
+        key: <<1, 2>>,
+        offset: 42,
         timestamp: @unix_now,
-        event_data: event_data,
-        schema_version: schema_version
+        event_data: <<9, 8, 7>>,
+        schema_version: 1
       }
 
-      payload = Protocol.encode_payload(:publish, message)
+      message_id = 1234
+
+      payload = Protocol.encode_payload(:publish, event)
       encoded_message = Protocol.encode_frame(:publish, message_id, payload)
 
       # expect a NACK
@@ -299,14 +260,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn {"test-client", ^event_type_id, ^key},
-           ^offset,
-           ^schema_version,
-           @unix_now,
-           ^event_data,
-           ^message_id ->
-          throw("catch!")
-        end
+        fn "test-client", ^event, ^message_id -> throw("catch!") end
       )
 
       assert capture_log(fn ->
