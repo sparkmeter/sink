@@ -36,12 +36,5 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @doc """
   Run implementer's logic for handling a "publish" message
   """
-  @callback handle_publish(
-              {event_type_id(), key()},
-              offset(),
-              schema_version(),
-              timestamp(),
-              event_data(),
-              message_id()
-            ) :: :ack
+  @callback handle_publish(Sink.Event.t(), message_id()) :: :ack
 end
