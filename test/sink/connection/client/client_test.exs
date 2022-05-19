@@ -12,7 +12,8 @@ defmodule Sink.Connection.ClientTest do
         offset: 1,
         timestamp: 1_618_150_125,
         event_data: "Hi",
-        schema_version: 3
+        schema_version: 3,
+        row_id: nil
       }
 
       assert {:error, :no_connection} == Client.publish(message, {1, <<>>, 3})

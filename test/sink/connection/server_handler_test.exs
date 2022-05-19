@@ -116,7 +116,8 @@ defmodule Sink.Connection.ServerHandlerTest do
         offset: 42,
         timestamp: @unix_now,
         event_data: <<9, 8, 7>>,
-        schema_version: 1
+        schema_version: 1,
+        row_id: nil
       }
 
       message_id = 1234
@@ -147,7 +148,8 @@ defmodule Sink.Connection.ServerHandlerTest do
         offset: 42,
         timestamp: @unix_now,
         event_data: <<9, 8, 7>>,
-        schema_version: 1
+        schema_version: 1,
+        row_id: nil
       }
 
       ack_key = {event.event_type_id, event.key, event.offset}
@@ -187,7 +189,8 @@ defmodule Sink.Connection.ServerHandlerTest do
         offset: 42,
         timestamp: @unix_now,
         event_data: <<9, 8, 7>>,
-        schema_version: 1
+        schema_version: 1,
+        row_id: nil
       }
 
       message_id = 1234
@@ -236,7 +239,8 @@ defmodule Sink.Connection.ServerHandlerTest do
         offset: 42,
         timestamp: @unix_now,
         event_data: <<9, 8, 7>>,
-        schema_version: 1
+        schema_version: 1,
+        row_id: nil
       }
 
       message_id = 1234
@@ -358,7 +362,8 @@ defmodule Sink.Connection.ServerHandlerTest do
         offset: 1,
         timestamp: 1_618_150_125,
         event_data: "Hi",
-        schema_version: 3
+        schema_version: 3,
+        row_id: nil
       }
 
       assert {:error, :no_connection} == ServerHandler.publish("fake", message, {1, <<>>, 3})
@@ -379,7 +384,8 @@ defmodule Sink.Connection.ServerHandlerTest do
         offset: event.offset,
         timestamp: timestamp,
         event_data: event_data,
-        schema_version: 1
+        schema_version: 1,
+        row_id: nil
       }
 
       assert {:stop, :normal, {:error, :closed}, state} =

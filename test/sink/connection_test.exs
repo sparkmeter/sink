@@ -15,7 +15,8 @@ defmodule Sink.ConnectionTest do
     offset: 1,
     timestamp: DateTime.to_unix(DateTime.utc_now()),
     event_data: :erlang.term_to_binary(%{message: "hi!"}),
-    schema_version: 1
+    schema_version: 1,
+    row_id: nil
   }
   @ack_key {@event.event_type_id, @event.key, @event.offset}
 

@@ -103,7 +103,8 @@ defmodule Sink.Connection.ProtocolTest do
         offset: 9,
         timestamp: @unix_now,
         event_data: <<0>>,
-        schema_version: 3
+        schema_version: 3,
+        row_id: nil
       }
 
       payload = Protocol.encode_payload(:publish, event)
@@ -125,7 +126,8 @@ defmodule Sink.Connection.ProtocolTest do
                offset: 9,
                timestamp: @unix_now,
                event_data: <<0>>,
-               schema_version: 3
+               schema_version: 3,
+               row_id: nil
              } == event
     end
   end

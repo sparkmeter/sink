@@ -10,9 +10,10 @@ defmodule Sink.Event do
           offset: non_neg_integer(),
           timestamp: non_neg_integer(),
           event_data: binary(),
-          schema_version: non_neg_integer()
+          schema_version: non_neg_integer(),
+          row_id: non_neg_integer() | nil
         }
-  fields = [:event_type_id, :key, :offset, :timestamp, :event_data, :schema_version]
+  fields = [:event_type_id, :key, :offset, :timestamp, :event_data, :schema_version, :row_id]
   @enforce_keys fields
   defstruct fields
 end

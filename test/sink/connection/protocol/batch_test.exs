@@ -10,7 +10,8 @@ defmodule Sink.Connection.Protocol.BatchTest do
     offset: 4,
     timestamp: @unix_now,
     event_data: <<5>>,
-    schema_version: 6
+    schema_version: 6,
+    row_id: nil
   }
   @sample_event_opposite %Sink.Event{
     event_type_id: 2,
@@ -18,7 +19,8 @@ defmodule Sink.Connection.Protocol.BatchTest do
     offset: 6,
     timestamp: @unix_now + 1,
     event_data: <<7, 8>>,
-    schema_version: 9
+    schema_version: 9,
+    row_id: nil
   }
   @no_compression %{
     event_type_id: false,
@@ -27,7 +29,8 @@ defmodule Sink.Connection.Protocol.BatchTest do
     offset: true,
     timestamp: true,
     event_data_length: false,
-    compressed: false
+    compressed: false,
+    row_id: nil
   }
 
   describe "encode" do
