@@ -84,8 +84,7 @@ defmodule Sink.Connection.Protocol do
       key: key,
       offset: offset,
       timestamp: timestamp,
-      event_data: event_data,
-      row_id: nil
+      event_data: event_data
     }
   end
 end

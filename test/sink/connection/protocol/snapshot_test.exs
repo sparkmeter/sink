@@ -10,8 +10,7 @@ defmodule Sink.Connection.Protocol.SnapshotTest do
     offset: 4,
     timestamp: @unix_now,
     event_data: <<5>>,
-    schema_version: 6,
-    row_id: nil
+    schema_version: 6
   }
   @sample_event_opposite %Sink.Event{
     event_type_id: 2,
@@ -19,8 +18,7 @@ defmodule Sink.Connection.Protocol.SnapshotTest do
     offset: 6,
     timestamp: @unix_now + 1,
     event_data: <<7, 8>>,
-    schema_version: 9,
-    row_id: nil
+    schema_version: 9
   }
 
   describe "append_batch" do

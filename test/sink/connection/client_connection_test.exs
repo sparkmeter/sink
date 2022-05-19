@@ -51,8 +51,7 @@ defmodule Sink.Connection.ClientConnectionTest do
         offset: offset,
         timestamp: @unix_now,
         event_data: event_data,
-        schema_version: schema_version,
-        row_id: nil
+        schema_version: schema_version
       }
 
       payload = Protocol.encode_payload(:publish, event)
@@ -86,8 +85,7 @@ defmodule Sink.Connection.ClientConnectionTest do
         offset: 42,
         timestamp: @unix_now,
         event_data: <<9, 8, 7>>,
-        schema_version: 1,
-        row_id: nil
+        schema_version: 1
       }
 
       message_id = 1234
@@ -136,8 +134,7 @@ defmodule Sink.Connection.ClientConnectionTest do
         offset: 42,
         timestamp: @unix_now,
         event_data: <<9, 8, 7>>,
-        schema_version: 1,
-        row_id: nil
+        schema_version: 1
       }
 
       message_id = 1234
@@ -266,8 +263,7 @@ defmodule Sink.Connection.ClientConnectionTest do
         offset: event.offset,
         timestamp: timestamp,
         event_data: event_data,
-        schema_version: 1,
-        row_id: nil
+        schema_version: 1
       }
 
       assert {:stop, :normal, {:error, :closed}, state} =

@@ -154,8 +154,7 @@ defmodule Sink.Connection.Protocol.Batch do
         offset: flags.offset,
         event_data_length: flags.event_data_length,
         compressed: compressed,
-        timestamp: flags.timestamp,
-        row_id: nil
+        timestamp: flags.timestamp
       }
     ) <>
       body
@@ -280,8 +279,7 @@ defmodule Sink.Connection.Protocol.Batch do
               offset: offset,
               timestamp: timestamp,
               event_data: event_data,
-              schema_version: schema_version,
-              row_id: nil
+              schema_version: schema_version
             }
             | acc
           ]
