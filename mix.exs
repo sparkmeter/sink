@@ -37,6 +37,7 @@ defmodule Sink.MixProject do
       {:ex_doc, "~> 0.24", only: :dev, runtime: false},
       {:mox, "~> 1.0", only: :test},
       {:ranch, "~> 1.8"},
+      {:table_rex, "~> 3.1.1", only: :dev},
       {:stream_data, "~> 0.5", only: :test},
       {:telemetry, "~> 0.4 or ~> 1.0"},
       # Blocked by kayrock dependency in gladys
