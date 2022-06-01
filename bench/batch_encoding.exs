@@ -13,14 +13,20 @@ defmodule BatchEncoding do
       iex> BatchEncoding.snapshot_to_binary()
       iex> BatchEncoding.snapshot_to_binary("some_snapshot.sink")
 
-  Benchmarks can be run either from IEx
+  Benchmarks can be run either using
+
+      mix run bench/batch_encoding.exs
+
+  or from IEx
 
       iex> BatchEncoding.benchmark
       iex> BatchEncoding.benchmark(implementations, files)
 
-  or using
+  There's also separate functions available via IEx for benchmarking sizes
+  and speed/memory usage:
 
-      mix run bench/batch_encoding.exs
+  - `BatchEncoding.benchmark_sizes/2`
+  - `BatchEncoding.benchmark_speed_and_memory/2`
 
   """
   alias Sink.Connection.Protocol.Snapshot
@@ -63,12 +69,14 @@ defmodule BatchEncoding do
   Benchmark implementations with test files
   """
   def benchmark(implementations \\ @implementations, files \\ all()) do
-    data =
-      for file <- files do
-        binary = File.read!(file)
-        events = :erlang.binary_to_term(binary, [:safe])
-        {file, events}
-      end
+    benchmark_sizes(implementations, files)
+    benchmark_speed_and_memory(implementations, files)
+
+    :ok
+  end
+
+  def benchmark_sizes(implementations \\ @implementations, files \\ all()) do
+    data = load_data_from_files(files)
 
     measurements =
       for impl <- implementations, {file, events} <- data, into: %{} do
@@ -90,6 +98,25 @@ defmodule BatchEncoding do
     end
 
     :ok
+  end
+
+  def benchmark_speed_and_memory(implementations \\ @implementations, files \\ all()) do
+    Benchee.run(
+      Map.new(implementations, fn impl ->
+        {impl_label(impl), fn events -> encode(impl, events) end}
+      end),
+      time: 10,
+      memory_time: 10,
+      inputs: load_data_from_files(files)
+    )
+  end
+
+  defp load_data_from_files(files) do
+    for file <- files do
+      binary = File.read!(file)
+      events = :erlang.binary_to_term(binary, [:safe])
+      {file, events}
+    end
   end
 
   defp color_benchmark_table_per_series(table) do
