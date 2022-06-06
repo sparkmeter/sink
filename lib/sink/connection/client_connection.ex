@@ -140,6 +140,7 @@ defmodule Sink.Connection.ClientConnection do
     schedule_check_keepalive(state.stats.keepalive_interval)
 
     :ok = handler.up()
+    Sink.Telemetry.start(:connection, %{})
 
     {:ok, state}
   end
@@ -166,6 +167,8 @@ defmodule Sink.Connection.ClientConnection do
 
       case state.transport.send(state.socket, encoded) do
         :ok ->
+          Sink.Telemetry.publish(:sent, %{event_type_id: event.event_type_id})
+
           new_state =
             state
             |> State.put_inflight(ack_key)
@@ -234,6 +237,8 @@ defmodule Sink.Connection.ClientConnection do
       |> case do
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
+          {event_type_id, _, _} = ack_key
+          Sink.Telemetry.ack(:received, %{event_type_id: event_type_id})
 
           # todo: error handling
           # :error ->
@@ -247,13 +252,15 @@ defmodule Sink.Connection.ClientConnection do
           nack_data = Protocol.decode_payload(:nack, payload)
           ack_key = State.find_inflight(state, message_id)
           new_state = State.put_received_nack(state, message_id, ack_key, nack_data)
-          {_event_type_id, _, _} = ack_key
+          {event_type_id, _, _} = ack_key
+          Sink.Telemetry.nack(:received, %{event_type_id: event_type_id})
 
           :ok = handler.handle_nack(ack_key, nack_data)
           {new_state, nil}
 
         {:publish, message_id, payload} ->
           event = Protocol.decode_payload(:publish, payload)
+          Sink.Telemetry.publish(:received, %{event_type_id: event.event_type_id})
 
           try do
             handler.handle_publish(event, message_id)
@@ -282,10 +289,18 @@ defmodule Sink.Connection.ClientConnection do
           end
 
         :ping ->
+          Sink.Telemetry.ping(:received, %{})
+
+          after_send = fn state ->
+            Sink.Telemetry.pong(:sent, %{})
+            state
+          end
+
           frame = Protocol.encode_frame(:pong)
-          {state, {:ping, frame}}
+          {state, {:ping, frame, after_send}}
 
         :pong ->
+          Sink.Telemetry.pong(:received, %{})
           {state, nil}
       end
 
@@ -325,6 +340,7 @@ defmodule Sink.Connection.ClientConnection do
 
   def terminate(reason, %State{} = state) do
     :ok = state.handler.down()
+    Sink.Telemetry.stop(:connection, state.stats.start_time, %{reason: reason})
 
     case reason do
       {:shutdown, {:external, _, from}} -> GenServer.reply(from, :ok)
