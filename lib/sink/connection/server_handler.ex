@@ -273,8 +273,16 @@ defmodule Sink.Connection.ServerHandler do
       encoded = Protocol.encode_frame(:publish, state.inflight.next_message_id, payload)
 
       case state.transport.send(state.socket, encoded) do
-        :ok -> {:reply, :ok, State.put_inflight(state, ack_key)}
-        {:error, _} = err -> {:stop, :normal, err, state}
+        :ok ->
+          Sink.Telemetry.publish(:sent, %{
+            client_id: state.client_id,
+            event_type_id: event.event_type_id
+          })
+
+          {:reply, :ok, State.put_inflight(state, ack_key)}
+
+        {:error, _} = err ->
+          {:stop, :normal, err, state}
       end
     end
   end
@@ -316,6 +324,8 @@ defmodule Sink.Connection.ServerHandler do
       |> case do
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
+          {event_type_id, _, _} = ack_key
+          Sink.Telemetry.ack(:received, %{client_id: client_id, event_type_id: event_type_id})
 
           # todo: error handling
           # :error ->
@@ -338,6 +348,11 @@ defmodule Sink.Connection.ServerHandler do
         {:publish, message_id, payload} ->
           event = Connection.Protocol.decode_payload(:publish, payload)
 
+          Sink.Telemetry.publish(:received, %{
+            client_id: client_id,
+            event_type_id: event.event_type_id
+          })
+
           # send the event to handler
           try do
             handler.handle_publish(client_id, event, message_id)
@@ -354,7 +369,16 @@ defmodule Sink.Connection.ServerHandler do
               :ok =
                 Sink.Connection.Freshness.update(client_id, event.event_type_id, event.timestamp)
 
-              {state, {:ack, frame}}
+              after_send = fn state ->
+                Sink.Telemetry.ack(:sent, %{
+                  client_id: client_id,
+                  event_type_id: event.event_type_id
+                })
+
+                state
+              end
+
+              {state, {:ack, frame, after_send}}
 
             {:nack, nack_data} ->
               ack_key = {event.event_type_id, event.key, event.offset}
@@ -374,10 +398,18 @@ defmodule Sink.Connection.ServerHandler do
           end
 
         :ping ->
+          Sink.Telemetry.ping(:received, %{})
+
+          after_send = fn state ->
+            Sink.Telemetry.pong(:sent, %{client_id: client_id})
+            state
+          end
+
           frame = Sink.Connection.Protocol.encode_frame(:pong)
-          {state, {:ping, frame}}
+          {state, {:ping, frame, after_send}}
 
         :pong ->
+          Sink.Telemetry.pong(:received, %{client_id: client_id})
           {state, nil}
       end
 

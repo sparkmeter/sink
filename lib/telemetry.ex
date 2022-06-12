@@ -1,18 +1,21 @@
 defmodule Sink.Telemetry do
   @moduledoc """
-  Sink emmits telemetry events for each started and stopped connection
+  Emit telemetry events for connection status and connection messages.
+
+  For the server, the `client_id` will be present in the metadata. For the client,
+  the `client_id` tag is not present.
 
   - [:sink, :connection, :start]
     is executed when a new connection is created
     meta: %{client_id, peername}
-      - client_id: the base station ID
+      - client_id: the client ID
       - peername: <IP:PORT>
     measurements: %{system_time}
 
   - [:sink, :connection, :stop]
     is executed when an exisiting connection closed
     meta: %{client_id, peername, reason}
-      - client_id: the base station ID
+      - client_id: the client ID
       - peername: <IP:PORT>
       - reason:
         - ssl_closed
@@ -24,15 +27,55 @@ defmodule Sink.Telemetry do
     TODO: when connection processes are monitored and unexpectedly go down add
     hooks for this event
 
+  - [:sink, :connection, :sent, :publish]
+    is executed when a PUBLISH is sent
+    meta: %{client_id}
+    - client_id: the client ID
+
+  - [:sink, :connection, :received, :publish]
+    is executed when a PUBLISH is received
+    meta: %{client_id}
+    - client_id: the client ID
+
   - [:sink, :connection, :sent, :nack]
     is executed when a NACK is sent
     meta: %{client_id}
-    - client_id: the base station ID
+    - client_id: the client ID
 
   - [:sink, :connection, :received, :nack]
     is executed when a NACK is received
     meta: %{client_id}
-    - client_id: the base station ID
+    - client_id: the client ID
+
+  - [:sink, :connection, :sent, :ack]
+    is executed when an ACK is sent
+    meta: %{client_id}
+    - client_id: the client ID
+
+  - [:sink, :connection, :received, :ack]
+    is executed when an ACK is received
+    meta: %{client_id}
+    - client_id: the client ID
+
+  - [:sink, :connection, :sent, :ping]
+    is executed when a PING is sent
+    meta: %{client_id}
+    - client_id: the client ID
+
+  - [:sink, :connection, :received, :ping]
+    is executed when a PING is received
+    meta: %{client_id}
+    - client_id: the client ID
+
+  - [:sink, :connection, :sent, :pong]
+    is executed when a PONG is sent
+    meta: %{client_id}
+    - client_id: the client ID
+
+  - [:sink, :connection, :received, :pong]
+    is executed when a PONG is received
+    meta: %{client_id}
+    - client_id: the client ID
 
   """
 
@@ -64,7 +107,23 @@ defmodule Sink.Telemetry do
     :telemetry.execute([:sink, event, :exception], measurements, meta)
   end
 
+  def ack(direction, meta \\ %{}) do
+    :telemetry.execute([:sink, :connection, direction, :ack], %{}, meta)
+  end
+
   def nack(direction, meta \\ %{}) do
     :telemetry.execute([:sink, :connection, direction, :nack], %{}, meta)
+  end
+
+  def publish(direction, meta \\ %{}) do
+    :telemetry.execute([:sink, :connection, direction, :publish], %{}, meta)
+  end
+
+  def ping(direction, meta \\ %{}) do
+    :telemetry.execute([:sink, :connection, direction, :ping], %{}, meta)
+  end
+
+  def pong(direction, meta \\ %{}) do
+    :telemetry.execute([:sink, :connection, direction, :pong], %{}, meta)
   end
 end
