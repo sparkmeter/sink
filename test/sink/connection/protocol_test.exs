@@ -5,6 +5,8 @@ defmodule Sink.Connection.ProtocolTest do
   alias Sink.Event
 
   @encoded_event <<1, 2, 1, 2, 1, 1, 0>>
+  @client_instantiated_at 1_618_150_000
+  @server_instantiated_at 1_618_100_000
   @unix_now 1_618_150_125
 
   describe "encode_frame" do
@@ -78,6 +80,106 @@ defmodule Sink.Connection.ProtocolTest do
       assert :publish == message_type
       assert 0 == message_id
       assert @encoded_event == payload
+    end
+  end
+
+  describe "connection_request" do
+    test "encodes request with no instantiated_server_timestamp" do
+      # <<1_618_150_000::integer-size(32)>> = <<96, 115, 2, 112>>
+      encoded = <<8>> <> <<96, 115, 2, 112>>
+
+      assert encoded ==
+               Protocol.encode_frame(:connection_request, {@client_instantiated_at, nil})
+
+      assert {:connection_request, {@client_instantiated_at, nil}} ==
+               Protocol.decode_frame(encoded)
+    end
+
+    test "encodes request with a server_instantiated_at" do
+      # <<1_618_100_000::integer-size(32)>> = <<96, 114, 63, 32>>
+      encoded = <<8>> <> <<96, 115, 2, 112>> <> <<96, 114, 63, 32>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_request,
+                 {@client_instantiated_at, @server_instantiated_at}
+               )
+
+      assert {:connection_request, {@client_instantiated_at, @server_instantiated_at}} ==
+               Protocol.decode_frame(encoded)
+    end
+  end
+
+  describe "connection_response" do
+    test "ok" do
+      encoded = <<16>>
+      assert encoded == Protocol.encode_frame(:connection_response, :ok)
+      assert {:connection_response, :ok} == Protocol.decode_frame(encoded)
+    end
+
+    test "hello new client" do
+      encoded = <<17>> <> <<96, 114, 63, 32>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_response,
+                 {:hello_new_client, @server_instantiated_at}
+               )
+
+      assert {:connection_response, {:hello_new_client, @server_instantiated_at}} ==
+               Protocol.decode_frame(encoded)
+    end
+
+    test "mismatched client" do
+      encoded = <<18>> <> <<96, 115, 2, 112>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_response,
+                 {:mismatched_client, @client_instantiated_at}
+               )
+
+      assert {:connection_response, {:mismatched_client, @client_instantiated_at}} ==
+               Protocol.decode_frame(encoded)
+    end
+
+    test "mismatched server" do
+      encoded = <<19>> <> <<96, 114, 63, 32>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_response,
+                 {:mismatched_server, @server_instantiated_at}
+               )
+
+      assert {:connection_response, {:mismatched_server, @server_instantiated_at}} ==
+               Protocol.decode_frame(encoded)
+    end
+
+    test "quarantined client" do
+      encoded = <<20>> <> <<3, 1, 2, 3>> <> <<4>> <> "test"
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_response,
+                 {:quarantined, <<1, 2, 3>>, "test"}
+               )
+
+      assert {:connection_response, {:quarantined, <<1, 2, 3>>, "test"}} ==
+               Protocol.decode_frame(encoded)
+    end
+
+    test "unsupported protocol version" do
+      encoded = <<21>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_response,
+                 :unsupported_protocol_version
+               )
+
+      assert {:connection_response, :unsupported_protocol_version} =
+               Protocol.decode_frame(encoded)
     end
   end
 

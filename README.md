@@ -34,7 +34,7 @@ Event logs and subscriptions might be stored in a data store such as SQLite, Cub
 
 ## Usage
 
-An example app is coming, but for now, the best example of how to use this is in `Sink.ConnectionTest`.
+Example uses of Sink are [here](https://github.com/sparkmeter/sink_examples).
 
 ### Ground and Cloud Event Logs
 
@@ -54,7 +54,7 @@ Sink uses mutual TLS authentication to set up a connection and to determine whic
 
 ### ACKs and NACKs
 
-When Sink publishes a message it expects and ACK or a NACK. An ACK means everything was received and processed as expected and the subscription can consider the event delivered. A NACK should be considered to be an exceptional state and contains information about why the event was NACK'd. There is a field for a "machine message", which is meant to be a machine readable binary message, like a http status,  determined by the implementer. The purpose is to have known error codes which might have a recovery path (ex: upgrading a device's firmware) There is also a field for a "human message", which is meant to be a human friendly description of the error and may be blank if bandwidth usage is a concern.
+Read more about the protocol [here](docs/protocol.md).
 
 ### Client Side
 
