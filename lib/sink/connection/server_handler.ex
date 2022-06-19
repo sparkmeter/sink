@@ -24,11 +24,12 @@ defmodule Sink.Connection.ServerHandler do
       :peername,
       :handler,
       :ssl_opts,
+      :connection_state,
       :stats,
       :inflight
     ]
 
-    def init(client_id, socket, transport, peername, handler, ssl_opts, now) do
+    def init(client_id, socket, transport, peername, handler, ssl_opts, instantiated_ats, now) do
       %State{
         client_id: client_id,
         socket: socket,
@@ -36,9 +37,14 @@ defmodule Sink.Connection.ServerHandler do
         peername: peername,
         handler: handler,
         ssl_opts: ssl_opts,
+        connection_state: {:awaiting_connection_request, instantiated_ats},
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
+    end
+
+    def connection_response(state, :ok) do
+      %State{state | connection_state: :ok}
     end
 
     def get_inflight(%State{} = state) do
@@ -206,6 +212,8 @@ defmodule Sink.Connection.ServerHandler do
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
+        instantiated_ats = handler.instantiated_ats()
+
         :ok =
           case Registry.register(@registry, client_id, DateTime.utc_now()) do
             {:ok, _} ->
@@ -220,7 +228,18 @@ defmodule Sink.Connection.ServerHandler do
 
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
 
-        state = State.init(client_id, socket, transport, peername, handler, ssl_opts, now())
+        state =
+          State.init(
+            client_id,
+            socket,
+            transport,
+            peername,
+            handler,
+            ssl_opts,
+            instantiated_ats,
+            now()
+          )
+
         schedule_check_keepalive(state.stats.keepalive_interval)
 
         :gen_server.enter_loop(
@@ -322,6 +341,11 @@ defmodule Sink.Connection.ServerHandler do
       message
       |> Connection.Protocol.decode_frame()
       |> case do
+        {:connection_request, instantiated_ats} ->
+          result = check_connection_request(state, instantiated_ats)
+          frame = Connection.Protocol.encode_frame(:connection_response, result)
+          {State.connection_response(state, result), {:connection_response, frame}}
+
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
           {event_type_id, _, _} = ack_key
@@ -447,6 +471,13 @@ defmodule Sink.Connection.ServerHandler do
 
   def handle_info({:EXIT, _from, :normal}, state) do
     {:stop, :normal, state}
+  end
+
+  defp check_connection_request(state, {client_at, server_at}) do
+    case state.connection_state do
+      {:awaiting_connection_request, {^client_at, ^server_at}} ->
+        :ok
+    end
   end
 
   # Helpers

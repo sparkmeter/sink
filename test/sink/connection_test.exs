@@ -2,13 +2,13 @@ defmodule Sink.ConnectionTest do
   use ExUnit.Case, async: false
   import ExUnit.CaptureLog
   import Mox
-  alias Sink.Connection.ClientConnectionHandlerMock
-  alias Sink.Connection.ServerConnectionHandlerMock
-  alias Sink.Connection.Transport.SSLMock
   alias Sink.Event
   alias Sink.Test.Certificates
 
   @client_id "abc123"
+  @mod_transport Sink.Connection.Transport.SSLMock
+  @client_handler Sink.Connection.ClientConnectionHandlerMock
+  @server_handler Sink.Connection.ServerConnectionHandlerMock
   @event %Event{
     event_type_id: 1,
     key: <<1, 2, 3>>,
@@ -50,21 +50,23 @@ defmodule Sink.ConnectionTest do
   end
 
   test "client can connect", %{server_ssl: server_ssl, client_ssl: client_ssl} do
-    stub_with(SSLMock, Sink.Connection.Transport.SSL)
-    stub(ServerConnectionHandlerMock, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-    stub(ServerConnectionHandlerMock, :up, fn _ -> :ok end)
-    stub(ServerConnectionHandlerMock, :down, fn _ -> :ok end)
-    stub(ClientConnectionHandlerMock, :up, fn -> :ok end)
-    stub(ClientConnectionHandlerMock, :down, fn -> :ok end)
+    stub_with(@mod_transport, Sink.Connection.Transport.SSL)
+    stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+    stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@mod_transport, :send, fn _, _ -> :ok end)
+    stub(@server_handler, :up, fn _ -> :ok end)
+    stub(@server_handler, :down, fn _ -> :ok end)
+    stub(@client_handler, :up, fn -> :ok end)
+    stub(@client_handler, :down, fn -> :ok end)
 
     start_supervised!(
-      {Sink.Connection.ServerListener,
-       port: 9999, ssl_opts: server_ssl, handler: ServerConnectionHandlerMock}
+      {Sink.Connection.ServerListener, port: 9999, ssl_opts: server_ssl, handler: @server_handler}
     )
 
     start_supervised!(
       {Sink.Connection.Client,
-       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: ClientConnectionHandlerMock}
+       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
     )
 
     refute Sink.Connection.Client.connected?()
@@ -86,15 +88,18 @@ defmodule Sink.ConnectionTest do
     client_ssl: client_ssl
   } do
     test = self()
-    stub_with(SSLMock, Sink.Connection.Transport.SSL)
-    stub(ServerConnectionHandlerMock, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-    stub(ServerConnectionHandlerMock, :up, fn _ -> :ok end)
-    stub(ServerConnectionHandlerMock, :down, fn _ -> :ok end)
-    stub(ClientConnectionHandlerMock, :up, fn -> :ok end)
-    stub(ClientConnectionHandlerMock, :down, fn -> :ok end)
+    stub_with(@mod_transport, Sink.Connection.Transport.SSL)
+    stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+    stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@mod_transport, :send, fn _, _ -> :ok end)
+    stub(@server_handler, :up, fn _ -> :ok end)
+    stub(@server_handler, :down, fn _ -> :ok end)
+    stub(@client_handler, :up, fn -> :ok end)
+    stub(@client_handler, :down, fn -> :ok end)
 
     expect(
-      ClientConnectionHandlerMock,
+      @client_handler,
       :handle_publish,
       fn event, _message_id ->
         send(test, {{:client, :publish}, event})
@@ -102,19 +107,18 @@ defmodule Sink.ConnectionTest do
       end
     )
 
-    expect(ServerConnectionHandlerMock, :handle_ack, fn client_id, ack_key ->
+    expect(@server_handler, :handle_ack, fn client_id, ack_key ->
       send(test, {:ack, client_id, ack_key})
       :ok
     end)
 
     start_supervised!(
-      {Sink.Connection.ServerListener,
-       port: 9999, ssl_opts: server_ssl, handler: ServerConnectionHandlerMock}
+      {Sink.Connection.ServerListener, port: 9999, ssl_opts: server_ssl, handler: @server_handler}
     )
 
     start_supervised!(
       {Sink.Connection.Client,
-       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: ClientConnectionHandlerMock}
+       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
     )
 
     # give it time to connect
@@ -141,15 +145,18 @@ defmodule Sink.ConnectionTest do
     client_ssl: client_ssl
   } do
     test = self()
-    stub_with(SSLMock, Sink.Connection.Transport.SSL)
-    stub(ServerConnectionHandlerMock, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-    stub(ServerConnectionHandlerMock, :up, fn _ -> :ok end)
-    stub(ServerConnectionHandlerMock, :down, fn _ -> :ok end)
-    stub(ClientConnectionHandlerMock, :up, fn -> :ok end)
-    stub(ClientConnectionHandlerMock, :down, fn -> :ok end)
+    stub_with(@mod_transport, Sink.Connection.Transport.SSL)
+    stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+    stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@mod_transport, :send, fn _, _ -> :ok end)
+    stub(@server_handler, :up, fn _ -> :ok end)
+    stub(@server_handler, :down, fn _ -> :ok end)
+    stub(@client_handler, :up, fn -> :ok end)
+    stub(@client_handler, :down, fn -> :ok end)
 
     expect(
-      ClientConnectionHandlerMock,
+      @client_handler,
       :handle_publish,
       fn event, _message_id ->
         send(test, {{:client, :publish}, event})
@@ -157,19 +164,18 @@ defmodule Sink.ConnectionTest do
       end
     )
 
-    expect(ServerConnectionHandlerMock, :handle_nack, fn client_id, ack_key, nack_key ->
+    expect(@server_handler, :handle_nack, fn client_id, ack_key, nack_key ->
       send(test, {:nack, client_id, ack_key, nack_key})
       :ok
     end)
 
     start_supervised!(
-      {Sink.Connection.ServerListener,
-       port: 9999, ssl_opts: server_ssl, handler: ServerConnectionHandlerMock}
+      {Sink.Connection.ServerListener, port: 9999, ssl_opts: server_ssl, handler: @server_handler}
     )
 
     start_supervised!(
       {Sink.Connection.Client,
-       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: ClientConnectionHandlerMock}
+       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
     )
 
     # give it time to connect
@@ -196,15 +202,18 @@ defmodule Sink.ConnectionTest do
     client_ssl: client_ssl
   } do
     test = self()
-    stub_with(SSLMock, Sink.Connection.Transport.SSL)
-    stub(ServerConnectionHandlerMock, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-    stub(ServerConnectionHandlerMock, :up, fn _ -> :ok end)
-    stub(ServerConnectionHandlerMock, :down, fn _ -> :ok end)
-    stub(ClientConnectionHandlerMock, :up, fn -> :ok end)
-    stub(ClientConnectionHandlerMock, :down, fn -> :ok end)
+    stub_with(@mod_transport, Sink.Connection.Transport.SSL)
+    stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+    stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@mod_transport, :send, fn _, _ -> :ok end)
+    stub(@server_handler, :up, fn _ -> :ok end)
+    stub(@server_handler, :down, fn _ -> :ok end)
+    stub(@client_handler, :up, fn -> :ok end)
+    stub(@client_handler, :down, fn -> :ok end)
 
     expect(
-      ServerConnectionHandlerMock,
+      @server_handler,
       :handle_publish,
       fn _client_id, event, _message_id ->
         send(test, {{:server, :publish}, event})
@@ -212,19 +221,18 @@ defmodule Sink.ConnectionTest do
       end
     )
 
-    expect(ClientConnectionHandlerMock, :handle_ack, fn ack_key ->
+    expect(@client_handler, :handle_ack, fn ack_key ->
       send(test, {:ack, ack_key})
       :ok
     end)
 
     start_supervised!(
-      {Sink.Connection.ServerListener,
-       port: 9999, ssl_opts: server_ssl, handler: ServerConnectionHandlerMock}
+      {Sink.Connection.ServerListener, port: 9999, ssl_opts: server_ssl, handler: @server_handler}
     )
 
     start_supervised!(
       {Sink.Connection.Client,
-       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: ClientConnectionHandlerMock}
+       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
     )
 
     # give it time to connect
@@ -251,15 +259,18 @@ defmodule Sink.ConnectionTest do
     client_ssl: client_ssl
   } do
     test = self()
-    stub_with(SSLMock, Sink.Connection.Transport.SSL)
-    stub(ServerConnectionHandlerMock, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-    stub(ServerConnectionHandlerMock, :up, fn _ -> :ok end)
-    stub(ServerConnectionHandlerMock, :down, fn _ -> :ok end)
-    stub(ClientConnectionHandlerMock, :up, fn -> :ok end)
-    stub(ClientConnectionHandlerMock, :down, fn -> :ok end)
+    stub_with(@mod_transport, Sink.Connection.Transport.SSL)
+    stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+    stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@mod_transport, :send, fn _, _ -> :ok end)
+    stub(@server_handler, :up, fn _ -> :ok end)
+    stub(@server_handler, :down, fn _ -> :ok end)
+    stub(@client_handler, :up, fn -> :ok end)
+    stub(@client_handler, :down, fn -> :ok end)
 
     expect(
-      ServerConnectionHandlerMock,
+      @server_handler,
       :handle_publish,
       fn _client_id, event, _message_id ->
         send(test, {{:server, :publish}, event})
@@ -267,19 +278,18 @@ defmodule Sink.ConnectionTest do
       end
     )
 
-    expect(ClientConnectionHandlerMock, :handle_nack, fn ack_key, nack_key ->
+    expect(@client_handler, :handle_nack, fn ack_key, nack_key ->
       send(test, {:nack, ack_key, nack_key})
       :ok
     end)
 
     start_supervised!(
-      {Sink.Connection.ServerListener,
-       port: 9999, ssl_opts: server_ssl, handler: ServerConnectionHandlerMock}
+      {Sink.Connection.ServerListener, port: 9999, ssl_opts: server_ssl, handler: @server_handler}
     )
 
     start_supervised!(
       {Sink.Connection.Client,
-       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: ClientConnectionHandlerMock}
+       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
     )
 
     # give it time to connect
@@ -306,15 +316,18 @@ defmodule Sink.ConnectionTest do
     client_ssl: client_ssl
   } do
     test = self()
-    stub_with(SSLMock, Sink.Connection.Transport.SSL)
-    stub(ServerConnectionHandlerMock, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-    stub(ServerConnectionHandlerMock, :up, fn _ -> :ok end)
-    stub(ServerConnectionHandlerMock, :down, fn _ -> :ok end)
-    stub(ClientConnectionHandlerMock, :up, fn -> :ok end)
-    stub(ClientConnectionHandlerMock, :down, fn -> :ok end)
+    stub_with(@mod_transport, Sink.Connection.Transport.SSL)
+    stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+    stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@mod_transport, :send, fn _, _ -> :ok end)
+    stub(@server_handler, :up, fn _ -> :ok end)
+    stub(@server_handler, :down, fn _ -> :ok end)
+    stub(@client_handler, :up, fn -> :ok end)
+    stub(@client_handler, :down, fn -> :ok end)
 
     expect(
-      ServerConnectionHandlerMock,
+      @server_handler,
       :handle_publish,
       fn _client_id, event, _message_id ->
         send(test, {{:server, :publish}, event})
@@ -322,19 +335,18 @@ defmodule Sink.ConnectionTest do
       end
     )
 
-    expect(ClientConnectionHandlerMock, :handle_ack, fn ack_key ->
+    expect(@client_handler, :handle_ack, fn ack_key ->
       send(test, {:ack, ack_key})
       :ok
     end)
 
     start_supervised!(
-      {Sink.Connection.ServerListener,
-       port: 9999, ssl_opts: server_ssl, handler: ServerConnectionHandlerMock}
+      {Sink.Connection.ServerListener, port: 9999, ssl_opts: server_ssl, handler: @server_handler}
     )
 
     start_supervised!(
       {Sink.Connection.Client,
-       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: ClientConnectionHandlerMock}
+       port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
     )
 
     # give it time to connect
@@ -361,31 +373,30 @@ defmodule Sink.ConnectionTest do
     server_ssl: server_ssl,
     client_ssl: client_ssl
   } do
-    stub_with(SSLMock, Sink.Connection.Transport.SSL)
+    stub_with(@mod_transport, Sink.Connection.Transport.SSL)
 
-    stub(ServerConnectionHandlerMock, :authenticate_client, fn _ ->
+    stub(@server_handler, :authenticate_client, fn _ ->
       {:error, RuntimeError.exception("Not allowed here!")}
     end)
 
-    stub(ServerConnectionHandlerMock, :up, fn _ -> :ok end)
-    stub(ServerConnectionHandlerMock, :down, fn _ -> :ok end)
-    stub(ClientConnectionHandlerMock, :up, fn -> :ok end)
-    stub(ClientConnectionHandlerMock, :down, fn -> :ok end)
+    stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+    stub(@mod_transport, :send, fn _, _ -> :ok end)
+    stub(@server_handler, :up, fn _ -> :ok end)
+    stub(@server_handler, :down, fn _ -> :ok end)
+    stub(@client_handler, :up, fn -> :ok end)
+    stub(@client_handler, :down, fn -> :ok end)
 
     logs =
       capture_log(fn ->
         start_supervised!(
           {Sink.Connection.ServerListener,
-           port: 9999, ssl_opts: server_ssl, handler: ServerConnectionHandlerMock}
+           port: 9999, ssl_opts: server_ssl, handler: @server_handler}
         )
 
         client =
           start_supervised!(
             {Sink.Connection.Client,
-             port: 9999,
-             host: "localhost",
-             ssl_opts: client_ssl,
-             handler: ClientConnectionHandlerMock}
+             port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
           )
 
         assert Process.alive?(client)
