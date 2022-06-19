@@ -14,6 +14,13 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @type timestamp() :: non_neg_integer()
 
   @doc """
+  Tell the connection when the client was instantiated_at and when it expects the server
+  was instantiated at. Used to ensure the client and server haven't been wiped or reset
+  between the last connection. See the connection request/response documentation for more.
+  """
+  @callback instantiated_ats() :: {non_neg_integer(), non_neg_integer() | nil}
+
+  @doc """
   The connection has been established and authenticated
   """
   @callback up() :: :ok

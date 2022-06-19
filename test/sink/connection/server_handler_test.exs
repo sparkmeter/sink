@@ -57,6 +57,7 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       @handler
       |> expect(:authenticate_client, fn _peer_cert -> {:ok, "test-client"} end)
+      |> expect(:instantiated_ats, 1, fn -> {1, 2} end)
       |> expect(:up, fn "test-client" -> :ok end)
       |> expect(:down, fn "test-client" -> :ok end)
 
@@ -89,6 +90,7 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       @handler
       |> expect(:authenticate_client, 2, fn _peer_cert -> {:ok, "test-client"} end)
+      |> expect(:instantiated_ats, 2, fn -> {1, 2} end)
       |> expect(:up, 2, fn "test-client" -> :ok end)
       |> expect(:down, 2, fn "test-client" -> :ok end)
 
