@@ -39,7 +39,7 @@ defmodule Sink.Connection.ServerHandlerTest do
   setup :set_mox_from_context
   setup :verify_on_exit!
 
-  describe "new client connecting" do
+  describe "running a ServerHandler" do
     test "succeeds" do
       ref = 123
       socket = 123
@@ -58,14 +58,13 @@ defmodule Sink.Connection.ServerHandlerTest do
       @handler
       |> expect(:authenticate_client, fn _peer_cert -> {:ok, "test-client"} end)
       |> expect(:instantiated_ats, 1, fn "test-client" -> {1, 2} end)
-      |> expect(:down, fn {"test-client", 1} -> :ok end)
 
       {:ok, pid} = ServerHandler.start_link(ref, socket, transport, opts)
 
       :timer.sleep(20)
       assert Process.alive?(pid)
 
-      assert ServerHandler.connected?("test-client")
+      assert false == ServerHandler.connected?("test-client")
 
       # teardown
       Process.exit(pid, :normal)
@@ -90,7 +89,6 @@ defmodule Sink.Connection.ServerHandlerTest do
       @handler
       |> expect(:authenticate_client, 2, fn _peer_cert -> {:ok, "test-client"} end)
       |> expect(:instantiated_ats, 2, fn "test-client" -> {1, 2} end)
-      |> expect(:down, 2, fn {"test-client", 1} -> :ok end)
 
       {:ok, pid_og} = ServerHandler.start_link(ref, socket, transport, opts)
 

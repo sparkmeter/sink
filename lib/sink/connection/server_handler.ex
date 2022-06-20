@@ -45,6 +45,27 @@ defmodule Sink.Connection.ServerHandler do
 
     def client_id(%State{client: {client_id, _}}), do: client_id
 
+    @doc """
+    Is the client connected to the server?
+
+    Note: a client may be connected, but not sending events - for example if it is
+    quarantined. However, it is still useful to track status of clients that have a
+    good network connection.
+    """
+    def connected?(%State{connection_state: {connection_state_name, _}}) do
+      connection_state_name != :awaiting_connection_request
+    end
+
+    @doc """
+    Is the client connected to the server and able to send and receive events?
+
+    Clients that are quarantined or have mismatched instantiated_ats will be connected,
+    but unable to send events.
+    """
+    def active?(%State{connection_state: {connection_state_name, _}}) do
+      connection_state_name == :ok
+    end
+
     def connection_response(
           %State{connection_state: {:awaiting_connection_request, instantiated_ats}} = state,
           :ok
@@ -169,7 +190,16 @@ defmodule Sink.Connection.ServerHandler do
     |> Registry.lookup(client_id)
     |> case do
       [] -> false
-      [{_pid, _}] -> true
+      [{pid, _}] -> GenServer.call(pid, :connected?)
+    end
+  end
+
+  def active?(client_id) do
+    @registry
+    |> Registry.lookup(client_id)
+    |> case do
+      [] -> false
+      [{pid, _}] -> GenServer.call(pid, :active?)
     end
   end
 
@@ -299,7 +329,9 @@ defmodule Sink.Connection.ServerHandler do
       %{client_id: client_id, peername: state.peername, reason: reason}
     )
 
-    :ok = state.handler.down(state.client)
+    if State.connected?(state) do
+      :ok = state.handler.down(state.client)
+    end
 
     state
   end
@@ -338,6 +370,14 @@ defmodule Sink.Connection.ServerHandler do
           {:stop, :normal, err, state}
       end
     end
+  end
+
+  def handle_call(:connected?, _from, state) do
+    {:reply, State.connected?(state), state}
+  end
+
+  def handle_call(:active?, _from, state) do
+    {:reply, State.active?(state), state}
   end
 
   def handle_call(:get_inflight, _from, state) do

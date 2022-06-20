@@ -30,6 +30,14 @@ defmodule Sink.Connection.ClientConnection do
       }
     end
 
+    def connected?(%State{connection_state: {connection_state_name, _}}) do
+      connection_state_name != :requesting_connection
+    end
+
+    def active?(%State{connection_state: {connection_state_name, _}}) do
+      connection_state_name == :ok
+    end
+
     def connection_response(
           %State{connection_state: {:requesting_connection, instantiated_ats}} = state,
           :ok
@@ -130,6 +138,20 @@ defmodule Sink.Connection.ClientConnection do
     :sys.get_state(Process.whereis(__MODULE__))
   end
 
+  def connected?() do
+    GenServer.call(__MODULE__, :connected?)
+  catch
+    :exit, _ ->
+      false
+  end
+
+  def active?() do
+    GenServer.call(__MODULE__, :active?)
+  catch
+    :exit, _ ->
+      false
+  end
+
   def get_inflight() do
     {:ok, GenServer.call(__MODULE__, :get_inflight)}
   catch
@@ -171,9 +193,6 @@ defmodule Sink.Connection.ClientConnection do
     schedule_maybe_ping(state.stats.keepalive_interval)
     schedule_check_keepalive(state.stats.keepalive_interval)
 
-    :ok = handler.up()
-    Sink.Telemetry.start(:connection, %{})
-
     {:ok, state, {:continue, :send_connection_request}}
   end
 
@@ -189,6 +208,14 @@ defmodule Sink.Connection.ClientConnection do
 
   def handle_call(:connection_status, _from, state) do
     {:reply, {:connected, now() - state.stats.start_time}, state}
+  end
+
+  def handle_call(:connected?, _from, state) do
+    {:reply, State.connected?(state), state}
+  end
+
+  def handle_call(:active?, _from, state) do
+    {:reply, State.active?(state), state}
   end
 
   def handle_call({:ack, message_id}, _from, state) do
@@ -279,7 +306,15 @@ defmodule Sink.Connection.ClientConnection do
       |> case do
         {:connection_response, result} ->
           :ok = handler.handle_connection_response(result)
-          {State.connection_response(state, result), nil}
+          new_state = State.connection_response(state, result)
+
+          if State.connected?(new_state) do
+            # do we still need .up() ?
+            :ok = handler.up()
+            Sink.Telemetry.start(:connection, %{})
+          end
+
+          {new_state, nil}
 
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
@@ -385,8 +420,10 @@ defmodule Sink.Connection.ClientConnection do
   end
 
   def terminate(reason, %State{} = state) do
-    :ok = state.handler.down()
-    Sink.Telemetry.stop(:connection, state.stats.start_time, %{reason: reason})
+    if State.connected?(state) do
+      :ok = state.handler.down()
+      Sink.Telemetry.stop(:connection, state.stats.start_time, %{reason: reason})
+    end
 
     case reason do
       {:shutdown, {:external, _, from}} -> GenServer.reply(from, :ok)
