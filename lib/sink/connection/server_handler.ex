@@ -66,6 +66,10 @@ defmodule Sink.Connection.ServerHandler do
       connection_state_name == :ok
     end
 
+    def quarantine(state, reason) do
+      %State{state | connection_state: {:quarantined, reason}}
+    end
+
     def connection_response(
           %State{connection_state: {:awaiting_connection_request, instantiated_ats}} = state,
           :ok
@@ -96,6 +100,13 @@ defmodule Sink.Connection.ServerHandler do
           {:mismatched_server, server_at}
         ) do
       %State{state | connection_state: {:mismatched_server, server_at}}
+    end
+
+    def connection_response(
+          %State{connection_state: {:quarantined, _}} = state,
+          {:quarantined, _}
+        ) do
+      state
     end
 
     def get_inflight(%State{} = state) do
@@ -272,9 +283,35 @@ defmodule Sink.Connection.ServerHandler do
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
-        instantiated_ats = handler.instantiated_ats(client_id)
-        {client_instantiated_at, _} = instantiated_ats
-        client = {client_id, client_instantiated_at}
+        state =
+          case handler.instantiated_ats(client_id) do
+            {:ok, instantiated_ats} ->
+              {client_instantiated_at, _} = instantiated_ats
+
+              State.init(
+                {client_id, client_instantiated_at},
+                socket,
+                transport,
+                peername,
+                handler,
+                ssl_opts,
+                instantiated_ats,
+                now()
+              )
+
+            {:quarantined, reason} ->
+              State.init(
+                {client_id, nil},
+                socket,
+                transport,
+                peername,
+                handler,
+                ssl_opts,
+                nil,
+                now()
+              )
+              |> State.quarantine(reason)
+          end
 
         :ok =
           case Registry.register(@registry, client_id, DateTime.utc_now()) do
@@ -287,18 +324,6 @@ defmodule Sink.Connection.ServerHandler do
           end
 
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
-
-        state =
-          State.init(
-            client,
-            socket,
-            transport,
-            peername,
-            handler,
-            ssl_opts,
-            instantiated_ats,
-            now()
-          )
 
         schedule_check_keepalive(state.stats.keepalive_interval)
 
@@ -414,6 +439,7 @@ defmodule Sink.Connection.ServerHandler do
         %State{client: client, handler: handler} = state
       ) do
     client_id = State.client_id(state)
+    is_active = State.active?(state)
 
     {new_state, response_message} =
       message
@@ -429,7 +455,7 @@ defmodule Sink.Connection.ServerHandler do
           handler.handle_connection_response(new_state.client, server_result)
           {new_state, {:connection_response, frame}}
 
-        {:ack, message_id} ->
+        {:ack, message_id} when is_active ->
           ack_key = State.find_inflight(state, message_id)
           {event_type_id, _, _} = ack_key
           Sink.Telemetry.ack(:received, %{client_id: client_id, event_type_id: event_type_id})
@@ -452,7 +478,7 @@ defmodule Sink.Connection.ServerHandler do
           :ok = handler.handle_nack(client, ack_key, nack_data)
           {new_state, nil}
 
-        {:publish, message_id, payload} ->
+        {:publish, message_id, payload} when is_active ->
           event = Connection.Protocol.decode_payload(:publish, payload)
 
           Sink.Telemetry.publish(:received, %{
@@ -518,6 +544,8 @@ defmodule Sink.Connection.ServerHandler do
         :pong ->
           Sink.Telemetry.pong(:received, %{client_id: client_id})
           {state, nil}
+
+          # todo: handle events when connection is not active
       end
 
     new_state = State.log_received(new_state, now())
@@ -554,6 +582,13 @@ defmodule Sink.Connection.ServerHandler do
 
   def handle_info({:EXIT, _from, :normal}, state) do
     {:stop, :normal, state}
+  end
+
+  defp check_connection_request(
+         {:quarantined, reason},
+         _
+       ) do
+    {{:quarantined, reason}, {:quarantined, reason}, {:quarantined, reason}}
   end
 
   defp check_connection_request(

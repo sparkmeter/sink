@@ -20,8 +20,14 @@ defmodule Sink.Connection.ServerConnectionHandler do
   When the client and server were instantiated. Used to ensure the client and server
   haven't been wiped or reset between the last connection. See the connection
   request/response documentation for more.
+
+  todo: call this something other than instantiated_ats since it also checks if the client
+  is quarantined.
   """
-  @callback instantiated_ats(client_id()) :: {non_neg_integer() | nil, non_neg_integer()}
+
+  @callback instantiated_ats(client_id()) ::
+              {:ok, non_neg_integer() | nil, non_neg_integer()}
+              | {:quarantined, {binary(), binary()}}
 
   @doc """
   The connection has been opened

@@ -57,7 +57,7 @@ defmodule Sink.ConnectionTest do
     } do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
-      stub(@server_handler, :instantiated_ats, fn "abc123" -> {1, 2} end)
+      stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
       stub(@mod_transport, :send, fn _, _ -> :ok end)
       stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
       expect(@client_handler, :handle_connection_response, fn :ok -> :ok end)
@@ -95,7 +95,7 @@ defmodule Sink.ConnectionTest do
     test "hello new client", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, nil} end)
-      stub(@server_handler, :instantiated_ats, fn "abc123" -> {nil, 2} end)
+      stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {nil, 2}} end)
       expect(@client_handler, :handle_connection_response, fn {:hello_new_client, 2} -> :ok end)
       stub(@server_handler, :up, fn _ -> :ok end)
       stub(@client_handler, :up, fn -> :ok end)
@@ -132,7 +132,7 @@ defmodule Sink.ConnectionTest do
     test "mismatched client", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, nil} end)
-      stub(@server_handler, :instantiated_ats, fn "abc123" -> {5, 2} end)
+      stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {5, 2}} end)
       expect(@client_handler, :handle_connection_response, fn {:mismatched_client, 5} -> :ok end)
 
       expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
@@ -176,7 +176,7 @@ defmodule Sink.ConnectionTest do
     test "mismatched server", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, 5} end)
-      stub(@server_handler, :instantiated_ats, fn "abc123" -> {1, 2} end)
+      stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
       expect(@client_handler, :handle_connection_response, fn {:mismatched_server, 2} -> :ok end)
 
       expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
@@ -211,6 +211,44 @@ defmodule Sink.ConnectionTest do
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
     end
+
+    test "quarantined", %{server_ssl: server_ssl, client_ssl: client_ssl} do
+      expected_response = {:quarantined, {<<1, 1, 1>>, "blocked"}}
+      stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+      stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
+      stub(@server_handler, :instantiated_ats, fn "abc123" -> expected_response end)
+      expect(@client_handler, :handle_connection_response, fn ^expected_response -> :ok end)
+
+      expect(@server_handler, :handle_connection_response, fn {"abc123", nil},
+                                                              ^expected_response ->
+        :ok
+      end)
+
+      expect(@server_handler, :down, fn _ -> :ok end)
+      expect(@client_handler, :down, fn -> :ok end)
+
+      start_supervised!(
+        {Sink.Connection.ServerListener,
+         port: 9999, ssl_opts: server_ssl, handler: @server_handler}
+      )
+
+      start_supervised!(
+        {Sink.Connection.Client,
+         port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
+      )
+
+      # # give it time to connect
+
+      Process.sleep(@time_to_connect)
+
+      assert Sink.Connection.Client.connected?()
+      refute Sink.Connection.Client.active?()
+      assert Sink.Connection.ServerHandler.connected?("abc123")
+      refute Sink.Connection.ServerHandler.active?("abc123")
+
+      stop_supervised!(Sink.Connection.Client)
+      stop_supervised!(Sink.Connection.ServerListener)
+    end
   end
 
   test "server sends message to client, client acks it", %{
@@ -221,7 +259,7 @@ defmodule Sink.ConnectionTest do
     stub_with(@mod_transport, Sink.Connection.Transport.SSL)
     stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
-    stub(@server_handler, :instantiated_ats, fn "abc123" -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
@@ -280,7 +318,7 @@ defmodule Sink.ConnectionTest do
     stub_with(@mod_transport, Sink.Connection.Transport.SSL)
     stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
-    stub(@server_handler, :instantiated_ats, fn "abc123" -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
@@ -339,7 +377,7 @@ defmodule Sink.ConnectionTest do
     stub_with(@mod_transport, Sink.Connection.Transport.SSL)
     stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
-    stub(@server_handler, :instantiated_ats, fn "abc123" -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
@@ -398,7 +436,7 @@ defmodule Sink.ConnectionTest do
     stub_with(@mod_transport, Sink.Connection.Transport.SSL)
     stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
-    stub(@server_handler, :instantiated_ats, fn "abc123" -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
@@ -457,7 +495,7 @@ defmodule Sink.ConnectionTest do
     stub_with(@mod_transport, Sink.Connection.Transport.SSL)
     stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
-    stub(@server_handler, :instantiated_ats, fn "abc123" -> {1, 2} end)
+    stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)

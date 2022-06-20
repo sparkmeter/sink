@@ -58,7 +58,7 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       @handler
       |> expect(:authenticate_client, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:instantiated_ats, 1, fn "test-client" -> {1, 2} end)
+      |> expect(:instantiated_ats, 1, fn "test-client" -> {:ok, {1, 2}} end)
 
       {:ok, pid} = ServerHandler.start_link(ref, socket, transport, opts)
 
@@ -89,7 +89,7 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       @handler
       |> expect(:authenticate_client, 2, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:instantiated_ats, 2, fn "test-client" -> {1, 2} end)
+      |> expect(:instantiated_ats, 2, fn "test-client" -> {:ok, {1, 2}} end)
 
       {:ok, pid_og} = ServerHandler.start_link(ref, socket, transport, opts)
 
