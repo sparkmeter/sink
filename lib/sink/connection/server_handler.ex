@@ -530,7 +530,7 @@ defmodule Sink.Connection.ServerHandler do
         :ok
 
       # if the server has never seen the client and the client has never seen the server or know what server to expect
-      is_nil(s_c_at) && !is_nil(c_c_at) && (is_nil(c_s_at) || s_s_at == c_s_at) ->
+      is_nil(s_c_at) && (is_nil(c_s_at) || s_s_at == c_s_at) ->
         :hello_new_client
 
       s_c_at != c_c_at ->

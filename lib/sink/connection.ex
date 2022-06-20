@@ -3,6 +3,12 @@ defmodule Sink.Connection do
   alias X509.Certificate
   @max_message_id (:math.pow(2, 12) - 1) |> Kernel.trunc()
 
+  @type timestamp() :: non_neg_integer()
+  @type connection_responses() ::
+          {:hello_new_client, timestamp()}
+          | {:mismatched_client, timestamp()}
+          | {:mismatched_server, timestamp()}
+
   def next_message_id(nil) do
     Enum.random(0..@max_message_id)
   end

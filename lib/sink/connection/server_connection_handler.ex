@@ -2,6 +2,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @moduledoc """
   Defines the interface for connection events.
   """
+  alias Sink.Connection
 
   @type ack_key() :: {event_type_id(), key(), offset()}
   @type client_id() :: String.t()
@@ -13,11 +14,6 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type message_id() :: non_neg_integer()
   @type nack_data() :: {binary(), String.t()}
   @type peer_cert() :: binary()
-  @type timestamp() :: non_neg_integer()
-  @type connection_responses() ::
-          {:hello_new_client, timestamp()}
-          | {:mismatched_client, timestamp()}
-          | {:mismatched_server, timestamp()}
 
   @doc """
   When the client and server were instantiated. Used to ensure the client and server
@@ -44,7 +40,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @doc """
   Run implementer's logic for handling a "connection response"
   """
-  @callback handle_connection_response(client_id(), connection_responses()) :: :ok
+  @callback handle_connection_response(client_id(), Connection.connection_responses()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "ack"
