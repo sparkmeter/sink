@@ -156,6 +156,41 @@ defmodule Sink.ConnectionTest do
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
     end
+
+    test "mismatched server", %{server_ssl: server_ssl, client_ssl: client_ssl} do
+      stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+      stub(@client_handler, :instantiated_ats, fn -> {1, 5} end)
+      stub(@server_handler, :instantiated_ats, fn -> {1, 2} end)
+      stub(@server_handler, :up, fn _ -> :ok end)
+      stub(@server_handler, :down, fn _ -> :ok end)
+      stub(@client_handler, :up, fn -> :ok end)
+      stub(@client_handler, :down, fn -> :ok end)
+      expect(@client_handler, :handle_connection_response, fn {:mismatched_server, 2} -> :ok end)
+
+      expect(@server_handler, :handle_connection_response, fn "abc123", {:mismatched_server, 2} ->
+        :ok
+      end)
+
+      start_supervised!(
+        {Sink.Connection.ServerListener,
+         port: 9999, ssl_opts: server_ssl, handler: @server_handler}
+      )
+
+      start_supervised!(
+        {Sink.Connection.Client,
+         port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
+      )
+
+      # # give it time to connect
+
+      Process.sleep(300)
+
+      assert Sink.Connection.Client.connected?()
+      assert Sink.Connection.ServerHandler.connected?("abc123")
+
+      stop_supervised!(Sink.Connection.Client)
+      stop_supervised!(Sink.Connection.ServerListener)
+    end
   end
 
   test "server sends message to client, client acks it", %{
