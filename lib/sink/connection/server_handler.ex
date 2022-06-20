@@ -43,8 +43,18 @@ defmodule Sink.Connection.ServerHandler do
       }
     end
 
-    def connection_response(state, :ok) do
-      %State{state | connection_state: :ok}
+    def connection_response(
+          %State{connection_state: {:awaiting_connection_request, instantiated_ats}} = state,
+          :ok
+        ) do
+      %State{state | connection_state: {:ok, instantiated_ats}}
+    end
+
+    def connection_response(
+          %State{connection_state: {:awaiting_connection_request, {nil, server_at}}} = state,
+          {:hello_new_client, client_at}
+        ) do
+      %State{state | connection_state: {:ok, {client_at, server_at}}}
     end
 
     def get_inflight(%State{} = state) do
@@ -342,7 +352,21 @@ defmodule Sink.Connection.ServerHandler do
       |> Connection.Protocol.decode_frame()
       |> case do
         {:connection_request, instantiated_ats} ->
-          result = check_connection_request(state, instantiated_ats)
+          result =
+            case check_connection_request(state.connection_state, instantiated_ats) do
+              :ok ->
+                :ok
+
+              :hello_new_client ->
+                {client_at, _} = instantiated_ats
+                {:awaiting_connection_request, {_, server_at}} = state.connection_state
+
+                :ok =
+                  handler.handle_connection_response(client_id, {:hello_new_client, client_at})
+
+                {:hello_new_client, server_at}
+            end
+
           frame = Connection.Protocol.encode_frame(:connection_response, result)
           {State.connection_response(state, result), {:connection_response, frame}}
 
@@ -473,10 +497,17 @@ defmodule Sink.Connection.ServerHandler do
     {:stop, :normal, state}
   end
 
-  defp check_connection_request(state, {client_at, server_at}) do
-    case state.connection_state do
-      {:awaiting_connection_request, {^client_at, ^server_at}} ->
+  defp check_connection_request(
+         {:awaiting_connection_request, {s_c_at, s_s_at}},
+         {c_c_at, c_s_at}
+       ) do
+    cond do
+      {s_s_at, s_c_at} == {c_s_at, c_c_at} ->
         :ok
+
+      # if the server has never seen the client and the client has never seen the server or know what server to expect
+      is_nil(s_c_at) && !is_nil(c_c_at) && (is_nil(c_s_at) || s_s_at == c_s_at) ->
+        :hello_new_client
     end
   end
 
