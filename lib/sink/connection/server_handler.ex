@@ -349,9 +349,8 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   def handle_call({:publish, event, ack_key}, _, state) do
-    if State.inflight?(state, ack_key) do
-      {:reply, {:error, :inflight}, state}
-    else
+    with {:inactive, false} <- {:inactive, !State.active?(state)},
+         {:inflight, false} <- {:inflight, State.inflight?(state, ack_key)} do
       payload = Protocol.encode_payload(:publish, event)
       encoded = Protocol.encode_frame(:publish, state.inflight.next_message_id, payload)
 
@@ -359,6 +358,9 @@ defmodule Sink.Connection.ServerHandler do
         :ok -> {:reply, :ok, State.put_inflight(state, ack_key)}
         {:error, _} = err -> {:stop, :normal, err, state}
       end
+    else
+      {reason, true} ->
+        {:reply, {:error, reason}, state}
     end
   end
 

@@ -22,6 +22,7 @@ defmodule Sink.Connection.ServerHandlerTest do
     socket: 123,
     transport: @mod_transport,
     peername: :fake,
+    connection_state: {:ok, {1, 2}},
     handler: @handler,
     ssl_opts: :fake,
     inflight: %Inflight{

@@ -21,6 +21,7 @@ defmodule Sink.Connection.ClientConnectionTest do
     peername: :fake,
     handler: @handler,
     transport: @mod_transport,
+    connection_state: {:ok, {1, 2}},
     inflight: %Inflight{
       next_message_id: 100
     },
