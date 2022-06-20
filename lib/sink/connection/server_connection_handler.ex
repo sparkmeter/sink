@@ -6,6 +6,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
 
   @type ack_key() :: {event_type_id(), key(), offset()}
   @type client_id() :: String.t()
+  @type client() :: {String.t(), Connection.timestamp()}
   @type event_type_id() :: pos_integer()
   @type key() :: binary()
   @type offset() :: non_neg_integer()
@@ -20,17 +21,17 @@ defmodule Sink.Connection.ServerConnectionHandler do
   haven't been wiped or reset between the last connection. See the connection
   request/response documentation for more.
   """
-  @callback instantiated_ats() :: {non_neg_integer() | nil, non_neg_integer()}
+  @callback instantiated_ats(client_id()) :: {non_neg_integer() | nil, non_neg_integer()}
 
   @doc """
-  The connection has been established and authenticated
+  The connection has been opened
   """
-  @callback up(client_id()) :: :ok
+  @callback up(client()) :: :ok
 
   @doc """
   The connection has been closed
   """
-  @callback down(client_id()) :: :ok
+  @callback down(client()) :: :ok
 
   @doc """
   Run implementer's authentication logic
@@ -40,23 +41,23 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @doc """
   Run implementer's logic for handling a "connection response"
   """
-  @callback handle_connection_response(client_id(), Connection.connection_responses()) :: :ok
+  @callback handle_connection_response(client(), Connection.connection_responses()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "ack"
   """
-  @callback handle_ack(client_id(), ack_key()) :: :ok
+  @callback handle_ack(client(), ack_key()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "nack"
   """
-  @callback handle_nack(client_id(), ack_key(), nack_data()) :: :ok
+  @callback handle_nack(client(), ack_key(), nack_data()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "publish" message.
 
   Should respond with either an ack or a nack with information about the nack
   """
-  @callback handle_publish(client_id(), Sink.Event.t(), message_id()) ::
+  @callback handle_publish(client(), Sink.Event.t(), message_id()) ::
               :ack | {:nack, nack_data()}
 end

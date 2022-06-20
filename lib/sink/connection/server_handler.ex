@@ -18,7 +18,7 @@ defmodule Sink.Connection.ServerHandler do
     alias Sink.Connection.{Inflight, Stats}
 
     defstruct [
-      :client_id,
+      :client,
       :socket,
       :transport,
       :peername,
@@ -29,9 +29,9 @@ defmodule Sink.Connection.ServerHandler do
       :inflight
     ]
 
-    def init(client_id, socket, transport, peername, handler, ssl_opts, instantiated_ats, now) do
+    def init(client, socket, transport, peername, handler, ssl_opts, instantiated_ats, now) do
       %State{
-        client_id: client_id,
+        client: client,
         socket: socket,
         transport: transport,
         peername: peername,
@@ -42,6 +42,8 @@ defmodule Sink.Connection.ServerHandler do
         inflight: Inflight.init()
       }
     end
+
+    def client_id(%State{client: {client_id, _}}), do: client_id
 
     def connection_response(
           %State{connection_state: {:awaiting_connection_request, instantiated_ats}} = state,
@@ -54,18 +56,22 @@ defmodule Sink.Connection.ServerHandler do
           %State{connection_state: {:awaiting_connection_request, {nil, server_at}}} = state,
           {:hello_new_client, client_at}
         ) do
-      %State{state | connection_state: {:ok, {client_at, server_at}}}
+      id = client_id(state)
+      client = {id, client_at}
+      %State{state | connection_state: {:ok, {client_at, server_at}}, client: client}
     end
 
     def connection_response(
-          %State{connection_state: {:awaiting_connection_request, {client_at, _}}} = state,
+          %State{connection_state: {:awaiting_connection_request, _}} = state,
           {:mismatched_client, client_at}
         ) do
-      %State{state | connection_state: {:mismatched_client, client_at}}
+      id = client_id(state)
+      client = {id, client_at}
+      %State{state | connection_state: {:mismatched_client, client_at}, client: client}
     end
 
     def connection_response(
-          %State{connection_state: {:awaiting_connection_request, {_, server_at}}} = state,
+          %State{connection_state: {:awaiting_connection_request, _}} = state,
           {:mismatched_server, server_at}
         ) do
       %State{state | connection_state: {:mismatched_server, server_at}}
@@ -236,7 +242,9 @@ defmodule Sink.Connection.ServerHandler do
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
-        instantiated_ats = handler.instantiated_ats()
+        instantiated_ats = handler.instantiated_ats(client_id)
+        {client_instantiated_at, _} = instantiated_ats
+        client = {client_id, client_instantiated_at}
 
         :ok =
           case Registry.register(@registry, client_id, DateTime.utc_now()) do
@@ -248,13 +256,11 @@ defmodule Sink.Connection.ServerHandler do
               register_when_clear(client_id)
           end
 
-        :ok = handler.up(client_id)
-
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
 
         state =
           State.init(
-            client_id,
+            client,
             socket,
             transport,
             peername,
@@ -285,13 +291,15 @@ defmodule Sink.Connection.ServerHandler do
 
   @impl GenServer
   def terminate(reason, %State{} = state) do
+    client_id = State.client_id(state)
+
     Sink.Telemetry.stop(
       :connection,
       state.stats.start_time,
-      %{client_id: state.client_id, peername: state.peername, reason: reason}
+      %{client_id: client_id, peername: state.peername, reason: reason}
     )
 
-    :ok = state.handler.down(state.client_id)
+    :ok = state.handler.down(state.client)
 
     state
   end
@@ -317,8 +325,10 @@ defmodule Sink.Connection.ServerHandler do
 
       case state.transport.send(state.socket, encoded) do
         :ok ->
+          {client_id, _client_instantiated_at} = state.client
+
           Sink.Telemetry.publish(:sent, %{
-            client_id: state.client_id,
+            client_id: client_id,
             event_type_id: event.event_type_id
           })
 
@@ -359,40 +369,23 @@ defmodule Sink.Connection.ServerHandler do
   @impl GenServer
   def handle_info(
         {:ssl, _socket, message},
-        %State{client_id: client_id, handler: handler} = state
+        %State{client: client, handler: handler} = state
       ) do
+    client_id = State.client_id(state)
+
     {new_state, response_message} =
       message
       |> Connection.Protocol.decode_frame()
       |> case do
         {:connection_request, instantiated_ats} ->
-          result =
-            case check_connection_request(state.connection_state, instantiated_ats) do
-              :ok ->
-                :ok
+          # this is kind of ugly
+          {client_result, server_result, state_result} =
+            check_connection_request(state.connection_state, instantiated_ats)
 
-              :hello_new_client ->
-                {client_at, _} = instantiated_ats
-                {:awaiting_connection_request, {_, server_at}} = state.connection_state
-
-                :ok =
-                  handler.handle_connection_response(client_id, {:hello_new_client, client_at})
-
-                {:hello_new_client, server_at}
-
-              :mismatched_client ->
-                {:awaiting_connection_request, {client_at, _}} = state.connection_state
-                handler.handle_connection_response(client_id, {:mismatched_client, client_at})
-                {:mismatched_client, client_at}
-
-              :mismatched_server ->
-                {:awaiting_connection_request, {_, server_at}} = state.connection_state
-                handler.handle_connection_response(client_id, {:mismatched_server, server_at})
-                {:mismatched_server, server_at}
-            end
-
-          frame = Connection.Protocol.encode_frame(:connection_response, result)
-          {State.connection_response(state, result), {:connection_response, frame}}
+          frame = Connection.Protocol.encode_frame(:connection_response, client_result)
+          new_state = State.connection_response(state, state_result)
+          handler.handle_connection_response(new_state.client, server_result)
+          {new_state, {:connection_response, frame}}
 
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
@@ -404,7 +397,7 @@ defmodule Sink.Connection.ServerHandler do
           # what to do if we can't ack?
           # rescue ->
           # how do we handle a failed ack?
-          :ok = handler.handle_ack(client_id, ack_key)
+          :ok = handler.handle_ack(client, ack_key)
           {State.remove_inflight(state, message_id), nil}
 
         {:nack, message_id, payload} ->
@@ -414,7 +407,7 @@ defmodule Sink.Connection.ServerHandler do
           {event_type_id, _, _} = ack_key
           Sink.Telemetry.nack(:received, %{client_id: client_id, event_type_id: event_type_id})
 
-          :ok = handler.handle_nack(client_id, ack_key, nack_data)
+          :ok = handler.handle_nack(client, ack_key, nack_data)
           {new_state, nil}
 
         {:publish, message_id, payload} ->
@@ -427,7 +420,7 @@ defmodule Sink.Connection.ServerHandler do
 
           # send the event to handler
           try do
-            handler.handle_publish(client_id, event, message_id)
+            handler.handle_publish(client, event, message_id)
           catch
             kind, e ->
               formatted = Exception.format(kind, e, __STACKTRACE__)
@@ -459,7 +452,7 @@ defmodule Sink.Connection.ServerHandler do
 
               after_send = fn state ->
                 Sink.Telemetry.nack(:sent, %{
-                  client_id: state.client_id,
+                  client_id: State.client_id(state),
                   event_type_id: event.event_type_id
                 })
 
@@ -527,17 +520,17 @@ defmodule Sink.Connection.ServerHandler do
        ) do
     cond do
       {s_s_at, s_c_at} == {c_s_at, c_c_at} ->
-        :ok
+        {:ok, :ok, :ok}
 
       # if the server has never seen the client and the client has never seen the server or know what server to expect
       is_nil(s_c_at) && (is_nil(c_s_at) || s_s_at == c_s_at) ->
-        :hello_new_client
+        {{:hello_new_client, s_s_at}, :hello_new_client, {:hello_new_client, c_c_at}}
 
       s_c_at != c_c_at ->
-        :mismatched_client
+        {{:mismatched_client, s_c_at}, {:mismatched_client, s_c_at}, {:mismatched_client, c_c_at}}
 
       s_s_at != c_s_at ->
-        :mismatched_server
+        {{:mismatched_server, s_s_at}, {:mismatched_server, c_s_at}, {:mismatched_server, c_s_at}}
     end
   end
 

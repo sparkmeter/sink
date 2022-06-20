@@ -277,20 +277,9 @@ defmodule Sink.Connection.ClientConnection do
       message
       |> Protocol.decode_frame()
       |> case do
-        {:connection_response, :ok} ->
-          {State.connection_response(state, :ok), nil}
-
-        {:connection_response, {:hello_new_client, server_instantiated_at}} ->
-          :ok = handler.handle_connection_response({:hello_new_client, server_instantiated_at})
-          {State.connection_response(state, {:hello_new_client, server_instantiated_at}), nil}
-
-        {:connection_response, {:mismatched_client, client_instantiated_at}} ->
-          :ok = handler.handle_connection_response({:mismatched_client, client_instantiated_at})
-          {State.connection_response(state, {:mismatched_client, client_instantiated_at}), nil}
-
-        {:connection_response, {:mismatched_server, server_instantiated_at}} ->
-          :ok = handler.handle_connection_response({:mismatched_server, server_instantiated_at})
-          {State.connection_response(state, {:mismatched_server, server_instantiated_at}), nil}
+        {:connection_response, result} ->
+          :ok = handler.handle_connection_response(result)
+          {State.connection_response(state, result), nil}
 
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)

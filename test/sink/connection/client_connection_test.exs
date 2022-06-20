@@ -275,15 +275,12 @@ defmodule Sink.Connection.ClientConnectionTest do
 
   describe "terminate" do
     test "calls handler.down()" do
-      test = self()
       stub(@handler, :instantiated_ats, fn -> {1, 2} end)
       stub(@mod_transport, :send, fn _, _ -> :ok end)
-      stub(@handler, :up, fn -> :ok end)
+      stub(@handler, :handle_connection_response, fn :ok -> :ok end)
 
-      expect(@handler, :down, fn ->
-        send(test, :down)
-        :ok
-      end)
+      expect(@handler, :up, fn -> :ok end)
+      expect(@handler, :down, fn -> :ok end)
 
       {:ok, connection} =
         ClientConnection.start_link(
@@ -294,25 +291,17 @@ defmodule Sink.Connection.ClientConnectionTest do
 
       Process.exit(connection, :normal)
 
-      assert_receive :down
-
       stop_connection(connection)
     end
   end
 
   describe "init" do
     test "calls handler.up(), sends a connection request" do
-      test = self()
-      stub(@handler, :down, fn -> :ok end)
+      expect(@handler, :up, fn -> :ok end)
+      expect(@handler, :down, fn -> :ok end)
 
       expect(@handler, :instantiated_ats, fn ->
-        send(test, :instantiated_ats)
         {1, 2}
-      end)
-
-      expect(@handler, :up, fn ->
-        send(test, :up)
-        :ok
       end)
 
       # check for connection request
@@ -327,9 +316,6 @@ defmodule Sink.Connection.ClientConnectionTest do
           handler: @handler,
           transport: Sink.Connection.Transport.SSLMock
         )
-
-      assert_receive :up
-      assert_receive :instantiated_ats
 
       stop_connection(connection)
     end

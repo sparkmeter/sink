@@ -21,7 +21,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @callback instantiated_ats() :: {non_neg_integer(), non_neg_integer() | nil}
 
   @doc """
-  The connection has been established and authenticated
+  The connection has been opened
   """
   @callback up() :: :ok
 

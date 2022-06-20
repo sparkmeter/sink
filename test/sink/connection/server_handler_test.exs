@@ -18,7 +18,7 @@ defmodule Sink.Connection.ServerHandlerTest do
   @mod_transport Sink.Connection.Transport.SSLMock
   @handler Sink.Connection.ServerConnectionHandlerMock
   @sample_state %ServerHandler.State{
-    client_id: "test-client",
+    client: {"test-client", 123},
     socket: 123,
     transport: @mod_transport,
     peername: :fake,
@@ -57,13 +57,12 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       @handler
       |> expect(:authenticate_client, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:instantiated_ats, 1, fn -> {1, 2} end)
-      |> expect(:up, fn "test-client" -> :ok end)
-      |> expect(:down, fn "test-client" -> :ok end)
+      |> expect(:instantiated_ats, 1, fn "test-client" -> {1, 2} end)
+      |> expect(:down, fn {"test-client", 1} -> :ok end)
 
       {:ok, pid} = ServerHandler.start_link(ref, socket, transport, opts)
 
-      :timer.sleep(5)
+      :timer.sleep(20)
       assert Process.alive?(pid)
 
       assert ServerHandler.connected?("test-client")
@@ -90,9 +89,8 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       @handler
       |> expect(:authenticate_client, 2, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:instantiated_ats, 2, fn -> {1, 2} end)
-      |> expect(:up, 2, fn "test-client" -> :ok end)
-      |> expect(:down, 2, fn "test-client" -> :ok end)
+      |> expect(:instantiated_ats, 2, fn "test-client" -> {1, 2} end)
+      |> expect(:down, 2, fn {"test-client", 1} -> :ok end)
 
       {:ok, pid_og} = ServerHandler.start_link(ref, socket, transport, opts)
 
@@ -132,7 +130,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn "test-client", ^event, ^message_id -> :ack end
+        fn {"test-client", 123}, ^event, ^message_id -> :ack end
       )
 
       assert {:noreply, new_state} =
@@ -171,7 +169,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn "test-client", ^event, ^message_id -> {:nack, nack_data} end
+        fn {"test-client", 123}, ^event, ^message_id -> {:nack, nack_data} end
       )
 
       state = @sample_state
@@ -213,7 +211,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn "test-client", ^event, ^message_id ->
+        fn {"test-client", 123}, ^event, ^message_id ->
           raise(ArgumentError, message: "boom")
         end
       )
@@ -262,7 +260,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         @handler,
         :handle_publish,
-        fn "test-client", ^event, ^message_id -> throw("catch!") end
+        fn {"test-client", 123}, ^event, ^message_id -> throw("catch!") end
       )
 
       assert capture_log(fn ->
@@ -288,7 +286,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       encoded_message = Protocol.encode_frame(:ack, 100)
 
       @handler
-      |> expect(:handle_ack, fn "test-client", ^ack_key ->
+      |> expect(:handle_ack, fn {"test-client", 123}, ^ack_key ->
         :ok
       end)
 
@@ -337,7 +335,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       encoded_message = Protocol.encode_frame(:nack, message_id, payload)
 
       @handler
-      |> expect(:handle_nack, fn "test-client", ^ack_key, ^nack_data ->
+      |> expect(:handle_nack, fn {"test-client", 123}, ^ack_key, ^nack_data ->
         :ok
       end)
 
