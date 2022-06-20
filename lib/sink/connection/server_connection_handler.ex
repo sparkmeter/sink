@@ -14,6 +14,17 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type nack_data() :: {binary(), String.t()}
   @type peer_cert() :: binary()
   @type timestamp() :: non_neg_integer()
+  @type connection_responses() ::
+          {:hello_new_client, timestamp()}
+          | {:mismatched_client, timestamp()}
+          | {:mismatched_server, timestamp()}
+
+  @doc """
+  When the client and server were instantiated. Used to ensure the client and server
+  haven't been wiped or reset between the last connection. See the connection
+  request/response documentation for more.
+  """
+  @callback instantiated_ats() :: {non_neg_integer() | nil, non_neg_integer()}
 
   @doc """
   The connection has been established and authenticated
@@ -29,6 +40,11 @@ defmodule Sink.Connection.ServerConnectionHandler do
   Run implementer's authentication logic
   """
   @callback authenticate_client(peer_cert()) :: {:ok, client_id()} | {:error, Exception.t()}
+
+  @doc """
+  Run implementer's logic for handling a "connection response"
+  """
+  @callback handle_connection_response(client_id(), connection_responses()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "ack"

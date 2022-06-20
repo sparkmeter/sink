@@ -14,18 +14,49 @@ defmodule Sink.Connection.ClientConnection do
       :peername,
       :handler,
       :transport,
+      :connection_state,
       :stats,
       :inflight
     ]
 
-    def init(socket, handler, transport, now) do
+    def init(socket, handler, transport, instantiated_ats, now) do
       %State{
         socket: socket,
         handler: handler,
         transport: transport,
+        connection_state: {:requesting_connection, instantiated_ats},
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
+    end
+
+    def connection_response(
+          %State{connection_state: {:requesting_connection, instantiated_ats}} = state,
+          :ok
+        ) do
+      %State{state | connection_state: {:ok, instantiated_ats}}
+    end
+
+    def connection_response(
+          %State{connection_state: {:requesting_connection, {client_instantiated_at, nil}}} =
+            state,
+          {:hello_new_client, server_instantiated_at}
+        ) do
+      %State{state | connection_state: {:ok, {client_instantiated_at, server_instantiated_at}}}
+    end
+
+    def connection_response(
+          %State{connection_state: {:requesting_connection, _}} = state,
+          {:mismatched_client, client_instantiated_at}
+        ) do
+      %State{state | connection_state: {:mismatched_client, client_instantiated_at}}
+    end
+
+    def connection_response(
+          %State{connection_state: {:requesting_connection, _}} = state,
+          {:mismatched_server, server_instantiated_at}
+        ) do
+      %State{state | connection_state: {:mismatched_server, server_instantiated_at}}
     end
 
     def get_inflight(%State{} = state) do
@@ -135,14 +166,25 @@ defmodule Sink.Connection.ClientConnection do
     socket = Keyword.fetch!(init_arg, :socket)
     handler = Keyword.fetch!(init_arg, :handler)
     transport = Keyword.fetch!(init_arg, :transport)
-    state = State.init(socket, handler, transport, now())
+    instantiated_ats = handler.instantiated_ats()
+    state = State.init(socket, handler, transport, instantiated_ats, now())
     schedule_maybe_ping(state.stats.keepalive_interval)
     schedule_check_keepalive(state.stats.keepalive_interval)
 
     :ok = handler.up()
     Sink.Telemetry.start(:connection, %{})
 
-    {:ok, state}
+    {:ok, state, {:continue, :send_connection_request}}
+  end
+
+  def handle_continue(:send_connection_request, state) do
+    {:requesting_connection, instantiated_ats} = state.connection_state
+    frame = Protocol.encode_frame(:connection_request, instantiated_ats)
+
+    case state.transport.send(state.socket, frame) do
+      :ok -> {:noreply, state}
+      {:error, _} -> {:stop, :normal, state}
+    end
   end
 
   def handle_call(:connection_status, _from, state) do
@@ -235,6 +277,21 @@ defmodule Sink.Connection.ClientConnection do
       message
       |> Protocol.decode_frame()
       |> case do
+        {:connection_response, :ok} ->
+          {State.connection_response(state, :ok), nil}
+
+        {:connection_response, {:hello_new_client, server_instantiated_at}} ->
+          :ok = handler.handle_connection_response({:hello_new_client, server_instantiated_at})
+          {State.connection_response(state, {:hello_new_client, server_instantiated_at}), nil}
+
+        {:connection_response, {:mismatched_client, client_instantiated_at}} ->
+          :ok = handler.handle_connection_response({:mismatched_client, client_instantiated_at})
+          {State.connection_response(state, {:mismatched_client, client_instantiated_at}), nil}
+
+        {:connection_response, {:mismatched_server, server_instantiated_at}} ->
+          :ok = handler.handle_connection_response({:mismatched_server, server_instantiated_at})
+          {State.connection_response(state, {:mismatched_server, server_instantiated_at}), nil}
+
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
           {event_type_id, _, _} = ack_key
