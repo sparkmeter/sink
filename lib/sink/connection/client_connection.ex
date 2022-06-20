@@ -67,6 +67,13 @@ defmodule Sink.Connection.ClientConnection do
       %State{state | connection_state: {:mismatched_server, server_instantiated_at}}
     end
 
+    def connection_response(
+          %State{connection_state: {:requesting_connection, _}} = state,
+          {:quarantined, reason}
+        ) do
+      %State{state | connection_state: {:quarantined, reason}}
+    end
+
     def get_inflight(%State{} = state) do
       Inflight.get_inflight(state.inflight)
     end
@@ -300,6 +307,8 @@ defmodule Sink.Connection.ClientConnection do
         {:ssl, _socket, message},
         %State{handler: handler} = state
       ) do
+    is_active = State.active?(state)
+
     {new_state, response_message} =
       message
       |> Protocol.decode_frame()
@@ -308,7 +317,7 @@ defmodule Sink.Connection.ClientConnection do
           :ok = handler.handle_connection_response(result)
           {State.connection_response(state, result), nil}
 
-        {:ack, message_id} ->
+        {:ack, message_id} when is_active ->
           ack_key = State.find_inflight(state, message_id)
 
           # todo: error handling
@@ -319,7 +328,7 @@ defmodule Sink.Connection.ClientConnection do
           :ok = handler.handle_ack(ack_key)
           {State.remove_inflight(state, message_id), nil}
 
-        {:nack, message_id, payload} ->
+        {:nack, message_id, payload} when is_active ->
           nack_data = Protocol.decode_payload(:nack, payload)
           ack_key = State.find_inflight(state, message_id)
           new_state = State.put_received_nack(state, message_id, ack_key, nack_data)
@@ -328,7 +337,7 @@ defmodule Sink.Connection.ClientConnection do
           :ok = handler.handle_nack(ack_key, nack_data)
           {new_state, nil}
 
-        {:publish, message_id, payload} ->
+        {:publish, message_id, payload} when is_active ->
           event = Protocol.decode_payload(:publish, payload)
 
           try do
@@ -363,6 +372,8 @@ defmodule Sink.Connection.ClientConnection do
 
         :pong ->
           {state, nil}
+
+          # todo: handle events when connection is not active
       end
 
     new_state = State.log_received(new_state, now())

@@ -162,15 +162,28 @@ defmodule Sink.Connection.ProtocolTest do
       assert encoded ==
                Protocol.encode_frame(
                  :connection_response,
-                 {:quarantined, <<1, 2, 3>>, "test"}
+                 {:quarantined, {<<1, 2, 3>>, "test"}}
                )
 
-      assert {:connection_response, {:quarantined, <<1, 2, 3>>, "test"}} ==
+      assert {:connection_response, {:quarantined, {<<1, 2, 3>>, "test"}}} ==
+               Protocol.decode_frame(encoded)
+    end
+
+    test "unquarantined client" do
+      encoded = <<21>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_response,
+                 :unquarantined
+               )
+
+      assert {:connection_response, :unquarantined} ==
                Protocol.decode_frame(encoded)
     end
 
     test "unsupported protocol version" do
-      encoded = <<21>>
+      encoded = <<22>>
 
       assert encoded ==
                Protocol.encode_frame(

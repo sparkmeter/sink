@@ -58,7 +58,7 @@ defmodule Sink.Connection.Protocol do
       <<server_instantiated_at::integer-size(32)>>
   end
 
-  def encode_frame(:connection_response, {:quarantined, machine_message, human_message}) do
+  def encode_frame(:connection_response, {:quarantined, {machine_message, human_message}}) do
     header = <<@message_type_id_connection_response::integer-size(4), 4::integer-size(4)>>
 
     machine_chunk =
@@ -68,8 +68,12 @@ defmodule Sink.Connection.Protocol do
     header <> machine_chunk <> human_chunk
   end
 
-  def encode_frame(:connection_response, :unsupported_protocol_version) do
+  def encode_frame(:connection_response, :unquarantined) do
     <<@message_type_id_connection_response::integer-size(4), 5::integer-size(4)>>
+  end
+
+  def encode_frame(:connection_response, :unsupported_protocol_version) do
+    <<@message_type_id_connection_response::integer-size(4), 6::integer-size(4)>>
   end
 
   def encode_frame(message_type, message_id, payload) do
@@ -183,10 +187,14 @@ defmodule Sink.Connection.Protocol do
   defp decode_connection_response(4, rest) do
     {machine_chunk, rest} = Helpers.decode_chunk(rest)
     {human_chunk, <<>>} = Helpers.decode_chunk(rest)
-    {:connection_response, {:quarantined, machine_chunk, human_chunk}}
+    {:connection_response, {:quarantined, {machine_chunk, human_chunk}}}
   end
 
   defp decode_connection_response(5, <<>>) do
+    {:connection_response, :unquarantined}
+  end
+
+  defp decode_connection_response(6, <<>>) do
     {:connection_response, :unsupported_protocol_version}
   end
 end

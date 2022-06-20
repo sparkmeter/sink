@@ -16,19 +16,23 @@ The server agrees that the client is who the server expects and the server is wh
 
 ### Hello New Client
 
-The server tells the client its `instantiated_at` value.
+The server has accepted the new clien'ts connection and is telling the client its `instantiated_at` value.
 
 ### Mismatched Client
 
-The client's instantiated_at was not what the server expected
+The client's instantiated_at was not what the server expected. Events should not be sent or received.
 
 ### Mismatched Server
 
-The server's instantiated_at was not what the client expected
+The server's instantiated_at was not what the client expected. Events should not be sent or received.
 
 ### Quarantined
 
-The client should either disconnect or stay connected with an infrequent ping, but not send or receive messages. The server will not send messages to or receive messages from the client until the client has been removed from quarantine by the server. The client is removed from quarantine when the server sends a `OK` connection response.
+The client should either disconnect or stay connected with an infrequent ping, but not send or receive messages. The server will not send messages to or receive messages from the client until the client has been removed from quarantine by the server. The client is removed from quarantine when the server sends a `UNQUARANTINED` connection response.
+
+### Unquarantined
+
+The client has been removed from quarantine and may send and receive events.
 
 ### Unsupported Protocol Version
 
