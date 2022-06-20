@@ -274,12 +274,9 @@ defmodule Sink.Connection.ClientConnectionTest do
   end
 
   describe "terminate" do
-    test "calls handler.down()" do
-      stub(@handler, :instantiated_ats, fn -> {1, 2} end)
-      stub(@mod_transport, :send, fn _, _ -> :ok end)
-      stub(@handler, :handle_connection_response, fn :ok -> :ok end)
-
-      expect(@handler, :down, fn -> :ok end)
+    test "does not call handler.down()if the connection response wasn't received" do
+      expect(@handler, :instantiated_ats, fn -> {1, 2} end)
+      expect(@mod_transport, :send, fn _, _ -> :ok end)
 
       {:ok, connection} =
         ClientConnection.start_link(
@@ -295,7 +292,7 @@ defmodule Sink.Connection.ClientConnectionTest do
   end
 
   describe "init" do
-    test "calls handler.up(), sends a connection request" do
+    test "sends a connection request" do
       stub(@handler, :down, fn -> :ok end)
 
       expect(@handler, :instantiated_ats, fn ->
