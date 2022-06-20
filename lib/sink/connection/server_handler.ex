@@ -57,6 +57,13 @@ defmodule Sink.Connection.ServerHandler do
       %State{state | connection_state: {:ok, {client_at, server_at}}}
     end
 
+    def connection_response(
+          %State{connection_state: {:awaiting_connection_request, {client_at, _}}} = state,
+          {:mismatched_client, client_at}
+        ) do
+      %State{state | connection_state: {:mismatched_client, client_at}}
+    end
+
     def get_inflight(%State{} = state) do
       Inflight.get_inflight(state.inflight)
     end
@@ -365,6 +372,11 @@ defmodule Sink.Connection.ServerHandler do
                   handler.handle_connection_response(client_id, {:hello_new_client, client_at})
 
                 {:hello_new_client, server_at}
+
+              :mismatched_client ->
+                {:awaiting_connection_request, {client_at, _}} = state.connection_state
+                handler.handle_connection_response(client_id, {:mismatched_client, client_at})
+                {:mismatched_client, client_at}
             end
 
           frame = Connection.Protocol.encode_frame(:connection_response, result)
@@ -508,6 +520,9 @@ defmodule Sink.Connection.ServerHandler do
       # if the server has never seen the client and the client has never seen the server or know what server to expect
       is_nil(s_c_at) && !is_nil(c_c_at) && (is_nil(c_s_at) || s_s_at == c_s_at) ->
         :hello_new_client
+
+      s_c_at != c_c_at ->
+        :mismatched_client
     end
   end
 

@@ -14,7 +14,10 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type nack_data() :: {binary(), String.t()}
   @type peer_cert() :: binary()
   @type timestamp() :: non_neg_integer()
-  @type connection_responses() :: {:hello_new_client, timestamp()}
+  @type connection_responses() ::
+          {:hello_new_client, timestamp()}
+          | {:mismatched_client, timestamp()}
+          | {:mismatched_server, timestamp()}
 
   @doc """
   When the client and server were instantiated. Used to ensure the client and server
