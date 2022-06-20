@@ -164,6 +164,11 @@ defmodule Sink.ConnectionTest do
       assert Sink.Connection.ServerHandler.connected?("abc123")
       refute Sink.Connection.ServerHandler.active?("abc123")
 
+      assert {:error, :inactive} == Sink.Connection.Client.publish(@event, @ack_key)
+
+      assert {:error, :inactive} ==
+               Sink.Connection.ServerHandler.publish("abc123", @event, @ack_key)
+
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
     end
@@ -255,7 +260,7 @@ defmodule Sink.ConnectionTest do
     assert Sink.Connection.ServerHandler.connected?(@client_id)
 
     # send the event
-    Sink.Connection.ServerHandler.publish(@client_id, @event, @ack_key)
+    assert :ok == Sink.Connection.ServerHandler.publish(@client_id, @event, @ack_key)
 
     Process.sleep(100)
 
