@@ -32,6 +32,7 @@ defmodule Sink.Connection.ClientConnectionTest do
       start_time: 0
     }
   }
+  @protocol_version 8
   @unix_now 1_618_150_125
 
   setup :set_mox_from_context
@@ -300,7 +301,7 @@ defmodule Sink.Connection.ClientConnectionTest do
 
       # check for connection request
       expect(@mod_transport, :send, fn _, frame ->
-        assert {:connection_request, {1, 2}} = Protocol.decode_frame(frame)
+        assert {:connection_request, @protocol_version, {1, 2}} = Protocol.decode_frame(frame)
         :ok
       end)
 

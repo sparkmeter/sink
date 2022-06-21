@@ -109,6 +109,13 @@ defmodule Sink.Connection.ServerHandler do
       state
     end
 
+    def connection_response(
+          %State{connection_state: {:awaiting_connection_request, _}} = state,
+          {:unsupported_protocol_version, protocol_version}
+        ) do
+      %State{state | connection_state: {:unsupported_protocol_version, protocol_version}}
+    end
+
     def get_inflight(%State{} = state) do
       Inflight.get_inflight(state.inflight)
     end
@@ -445,7 +452,14 @@ defmodule Sink.Connection.ServerHandler do
       message
       |> Connection.Protocol.decode_frame()
       |> case do
-        {:connection_request, instantiated_ats} ->
+        {:error, :unsupported_protocol_version, protocol_version} ->
+          result = {:unsupported_protocol_version, protocol_version}
+          frame = Connection.Protocol.encode_frame(:connection_response, result)
+          new_state = State.connection_response(state, result)
+          handler.handle_connection_response(new_state.client, result)
+          {new_state, {:connection_response, frame}}
+
+        {:connection_request, _protocol_version, instantiated_ats} ->
           # this is kind of ugly
           {client_result, server_result, state_result} =
             check_connection_request(state.connection_state, instantiated_ats)

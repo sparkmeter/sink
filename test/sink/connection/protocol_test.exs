@@ -91,7 +91,7 @@ defmodule Sink.Connection.ProtocolTest do
       assert encoded ==
                Protocol.encode_frame(:connection_request, {@client_instantiated_at, nil})
 
-      assert {:connection_request, {@client_instantiated_at, nil}} ==
+      assert {:connection_request, 8, {@client_instantiated_at, nil}} ==
                Protocol.decode_frame(encoded)
     end
 
@@ -105,7 +105,7 @@ defmodule Sink.Connection.ProtocolTest do
                  {@client_instantiated_at, @server_instantiated_at}
                )
 
-      assert {:connection_request, {@client_instantiated_at, @server_instantiated_at}} ==
+      assert {:connection_request, 8, {@client_instantiated_at, @server_instantiated_at}} ==
                Protocol.decode_frame(encoded)
     end
   end
@@ -183,15 +183,15 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "unsupported protocol version" do
-      encoded = <<22>>
+      encoded = <<22>> <> <<11>>
 
       assert encoded ==
                Protocol.encode_frame(
                  :connection_response,
-                 :unsupported_protocol_version
+                 {:unsupported_protocol_version, 11}
                )
 
-      assert {:connection_response, :unsupported_protocol_version} =
+      assert {:connection_response, {:unsupported_protocol_version, 11}} =
                Protocol.decode_frame(encoded)
     end
   end
