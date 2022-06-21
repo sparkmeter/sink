@@ -5,6 +5,7 @@ defmodule Sink.Connection.Protocol do
   # when we get to Sink 1.0 this will be 0 and we'll delete / deprecate anything
   # 8 and higher
   @protocol_version 8
+  @supported_protocol_versions [8]
   @message_type_id_connection_request 0
   @message_type_id_connection_response 1
 
@@ -72,8 +73,9 @@ defmodule Sink.Connection.Protocol do
     <<@message_type_id_connection_response::integer-size(4), 5::integer-size(4)>>
   end
 
-  def encode_frame(:connection_response, :unsupported_protocol_version) do
-    <<@message_type_id_connection_response::integer-size(4), 6::integer-size(4)>>
+  def encode_frame(:connection_response, {:unsupported_protocol_version, protocol_version}) do
+    <<@message_type_id_connection_response::integer-size(4), 6::integer-size(4)>> <>
+      <<protocol_version::integer-size(8)>>
   end
 
   def encode_frame(message_type, message_id, payload) do
@@ -93,7 +95,7 @@ defmodule Sink.Connection.Protocol do
 
     case message_type_id do
       @message_type_id_connection_request ->
-        decode_connection_request(rest)
+        decode_connection_request(header_rest, rest)
 
       @message_type_id_connection_response ->
         decode_connection_response(header_rest, rest)
@@ -156,14 +158,19 @@ defmodule Sink.Connection.Protocol do
     }
   end
 
-  defp decode_connection_request(rest) do
+  defp decode_connection_request(protocol_version, _rest)
+       when protocol_version not in @supported_protocol_versions do
+    {:error, :unsupported_protocol_version, protocol_version}
+  end
+
+  defp decode_connection_request(protocol_version, rest) do
     <<client_instantiated_at::integer-size(32), maybe_server::binary>> = rest
 
     if maybe_server != <<>> do
       <<server_instantiated_at::integer-size(32)>> = maybe_server
-      {:connection_request, {client_instantiated_at, server_instantiated_at}}
+      {:connection_request, protocol_version, {client_instantiated_at, server_instantiated_at}}
     else
-      {:connection_request, {client_instantiated_at, nil}}
+      {:connection_request, protocol_version, {client_instantiated_at, nil}}
     end
   end
 
@@ -194,7 +201,7 @@ defmodule Sink.Connection.Protocol do
     {:connection_response, :unquarantined}
   end
 
-  defp decode_connection_response(6, <<>>) do
-    {:connection_response, :unsupported_protocol_version}
+  defp decode_connection_response(6, <<protocol_version::integer-size(8)>>) do
+    {:connection_response, {:unsupported_protocol_version, protocol_version}}
   end
 end

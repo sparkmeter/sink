@@ -107,6 +107,61 @@ defmodule Sink.Connection.ServerHandlerTest do
     end
   end
 
+  test "unsupported protocol version" do
+    ref = 123
+    socket = 123
+    transport = __MODULE__
+
+    opts = [
+      handler: @handler,
+      transport: @mod_transport,
+      ssl_opts: []
+    ]
+
+    @mod_transport
+    |> expect(:peercert, fn _socket -> {:ok, <<1, 2, 3>>} end)
+    |> expect(:peername, fn _socket -> {:ok, {{127, 0, 0, 1}, 51380}} end)
+
+    @handler
+    |> expect(:authenticate_client, fn _peer_cert -> {:ok, "test-client"} end)
+    |> expect(:instantiated_ats, 1, fn "test-client" -> {:ok, {1, 2}} end)
+
+    {:ok, pid} = ServerHandler.start_link(ref, socket, transport, opts)
+
+    :timer.sleep(20)
+    assert Process.alive?(pid)
+
+    assert false == ServerHandler.connected?("test-client")
+
+    # pretend we have a connection request from protocol version 11
+    encoded_message = <<11>> <> <<1, 2, 3>>
+
+    expected_connection_response =
+      Protocol.encode_frame(:connection_response, {:unsupported_protocol_version, 11})
+
+    expect(
+      @handler,
+      :handle_connection_response,
+      fn {"test-client", nil}, {:unsupported_protocol_version, 11} -> :ok end
+    )
+
+    @mod_transport
+    |> expect(:send, fn 123, ^expected_connection_response -> :ok end)
+
+    state = %ServerHandler.State{
+      @sample_state
+      | client: {"test-client", nil},
+        connection_state: {:awaiting_connection_request, {1, 2}}
+    }
+
+    assert {:noreply, _new_state} =
+             ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+
+    # teardown
+    Process.exit(pid, :normal)
+    :timer.sleep(5)
+  end
+
   describe "receiving (publish)" do
     test "with good data decodes and forwards to handler, then acks" do
       event = %Event{
