@@ -67,7 +67,32 @@ defmodule Sink.Connection.ServerHandler do
     end
 
     def quarantine(state, reason) do
-      %State{state | connection_state: {:quarantined, reason}}
+      case state.connection_state do
+        {c_state, _} when c_state in [:ok, :awaiting_connection_request] ->
+          {:ok, %State{state | connection_state: {:quarantined, reason}}}
+
+        _ ->
+          {:error, :bad_state}
+      end
+    end
+
+    def unquarantine(state, instantiated_ats) do
+      case state.connection_state do
+        {:quarantined, _} ->
+          {client_instantiated_at, _} = instantiated_ats
+          {client_id, _} = state.client
+          client = {client_id, client_instantiated_at}
+
+          {:ok,
+           %State{
+             state
+             | connection_state: {:awaiting_connection_request, instantiated_ats},
+               client: client
+           }}
+
+        _ ->
+          {:error, :bad_state}
+      end
     end
 
     def connection_response(
@@ -194,6 +219,26 @@ defmodule Sink.Connection.ServerHandler do
       {:error, :no_connection}
   end
 
+  def quarantine(client_id, {machine_message, human_message}) do
+    case whereis(client_id) do
+      nil -> {:error, :no_connection}
+      pid -> GenServer.call(pid, {:quarantine, {machine_message, human_message}})
+    end
+  catch
+    :exit, _ ->
+      {:error, :no_connection}
+  end
+
+  def unquarantine(client_id) do
+    case whereis(client_id) do
+      nil -> {:error, :no_connection}
+      pid -> GenServer.call(pid, :unquarantine)
+    end
+  catch
+    :exit, _ ->
+      {:error, :no_connection}
+  end
+
   def whereis(client_id) do
     @registry
     |> Registry.lookup(client_id)
@@ -307,17 +352,20 @@ defmodule Sink.Connection.ServerHandler do
               )
 
             {:quarantined, reason} ->
-              State.init(
-                {client_id, nil},
-                socket,
-                transport,
-                peername,
-                handler,
-                ssl_opts,
-                nil,
-                now()
-              )
-              |> State.quarantine(reason)
+              {:ok, new_state} =
+                State.init(
+                  {client_id, nil},
+                  socket,
+                  transport,
+                  peername,
+                  handler,
+                  ssl_opts,
+                  nil,
+                  now()
+                )
+                |> State.quarantine(reason)
+
+              new_state
           end
 
         :ok =
@@ -403,6 +451,37 @@ defmodule Sink.Connection.ServerHandler do
     else
       {reason, true} ->
         {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call({:quarantine, {machine_message, human_message}}, _, state) do
+    case State.quarantine(state, {machine_message, human_message}) do
+      {:ok, new_state} ->
+        encoded =
+          Protocol.encode_frame(
+            :connection_response,
+            {:quarantined, {machine_message, human_message}}
+          )
+
+        case state.transport.send(state.socket, encoded) do
+          :ok -> {:reply, :ok, new_state}
+          {:error, _} = err -> {:stop, :normal, err, state}
+        end
+    end
+  end
+
+  def handle_call(:unquarantine, _, state) do
+    {client_id, _} = state.client
+    {:ok, instantiated_ats} = state.handler.instantiated_ats(client_id)
+
+    case State.unquarantine(state, instantiated_ats) do
+      {:ok, new_state} ->
+        encoded = Protocol.encode_frame(:connection_response, :unquarantined)
+
+        case state.transport.send(state.socket, encoded) do
+          :ok -> {:reply, :ok, new_state}
+          {:error, _} = err -> {:stop, :normal, err, state}
+        end
     end
   end
 

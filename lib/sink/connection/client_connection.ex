@@ -74,6 +74,13 @@ defmodule Sink.Connection.ClientConnection do
       %State{state | connection_state: {:quarantined, reason}}
     end
 
+    def connection_response(
+          %State{connection_state: {:quarantined, _}} = state,
+          {:unquarantined, instantiated_ats}
+        ) do
+      %State{state | connection_state: {:requesting_connection, instantiated_ats}}
+    end
+
     def get_inflight(%State{} = state) do
       Inflight.get_inflight(state.inflight)
     end
@@ -315,6 +322,19 @@ defmodule Sink.Connection.ClientConnection do
       message
       |> Protocol.decode_frame()
       |> case do
+        {:connection_response, :unquarantined} ->
+          instantiated_ats = handler.instantiated_ats()
+          frame = Protocol.encode_frame(:connection_request, instantiated_ats)
+
+          case state.transport.send(state.socket, frame) do
+            :ok ->
+              :ok = handler.handle_connection_response(:unquarantined)
+              {State.connection_response(state, {:unquarantined, instantiated_ats}), nil}
+
+            {:error, _} ->
+              {:stop, :normal, state}
+          end
+
         {:connection_response, result} ->
           :ok = handler.handle_connection_response(result)
           new_state = State.connection_response(state, result)

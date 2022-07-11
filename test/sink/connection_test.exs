@@ -212,7 +212,7 @@ defmodule Sink.ConnectionTest do
       stop_supervised!(Sink.Connection.ServerListener)
     end
 
-    test "quarantined", %{server_ssl: server_ssl, client_ssl: client_ssl} do
+    test "quarantined, then unquarantined", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       expected_response = {:quarantined, {<<1, 1, 1>>, "blocked"}}
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
@@ -237,14 +237,34 @@ defmodule Sink.ConnectionTest do
          port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
       )
 
-      # # give it time to connect
+      # give it time to connect
 
       Process.sleep(@time_to_connect)
+
+      # check that the client is connected, but not active
 
       assert Sink.Connection.Client.connected?()
       refute Sink.Connection.Client.active?()
       assert Sink.Connection.ServerHandler.connected?("abc123")
       refute Sink.Connection.ServerHandler.active?("abc123")
+
+      # unquarantine the client, check that the connection is active and the
+      # instantiated_ats are correct
+
+      stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
+      expect(@client_handler, :handle_connection_response, fn :unquarantined -> :ok end)
+      stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
+      stub(@server_handler, :down, fn _ -> :ok end)
+      expect(@client_handler, :handle_connection_response, fn :ok -> :ok end)
+
+      assert :ok == Sink.Connection.ServerHandler.unquarantine("abc123")
+
+      Process.sleep(10)
+
+      assert Sink.Connection.Client.connected?()
+      assert Sink.Connection.Client.active?()
+      assert Sink.Connection.ServerHandler.connected?("abc123")
+      assert Sink.Connection.ServerHandler.active?("abc123")
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
