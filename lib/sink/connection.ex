@@ -5,9 +5,12 @@ defmodule Sink.Connection do
 
   @type timestamp() :: non_neg_integer()
   @type connection_responses() ::
-          {:hello_new_client, timestamp()}
+          :ok
+          | {:hello_new_client, timestamp()}
           | {:mismatched_client, timestamp()}
           | {:mismatched_server, timestamp()}
+          | {:quarantined, binary(), binary()}
+          | :unquarantined
 
   def next_message_id(nil) do
     Enum.random(0..@max_message_id)
