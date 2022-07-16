@@ -30,11 +30,6 @@ defmodule Sink.Connection.ServerConnectionHandler do
               | {:quarantined, {binary(), binary()}}
 
   @doc """
-  The connection has been opened
-  """
-  @callback up(client()) :: :ok
-
-  @doc """
   The connection has been closed
   """
   @callback down(client()) :: :ok

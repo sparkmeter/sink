@@ -40,7 +40,7 @@ defmodule Sink.Connection.ClientConnection do
 
     def connection_response(
           %State{connection_state: {:requesting_connection, instantiated_ats}} = state,
-          :ok
+          :connected
         ) do
       %State{state | connection_state: {:ok, instantiated_ats}}
     end
@@ -340,8 +340,6 @@ defmodule Sink.Connection.ClientConnection do
           new_state = State.connection_response(state, result)
 
           if State.connected?(new_state) do
-            # do we still need .up() ?
-            :ok = handler.up()
             Sink.Telemetry.start(:connection, %{})
           end
 

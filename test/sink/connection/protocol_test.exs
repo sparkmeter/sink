@@ -113,8 +113,8 @@ defmodule Sink.Connection.ProtocolTest do
   describe "connection_response" do
     test "ok" do
       encoded = <<16>>
-      assert encoded == Protocol.encode_frame(:connection_response, :ok)
-      assert {:connection_response, :ok} == Protocol.decode_frame(encoded)
+      assert encoded == Protocol.encode_frame(:connection_response, :connected)
+      assert {:connection_response, :connected} == Protocol.decode_frame(encoded)
     end
 
     test "hello new client" do
@@ -131,28 +131,30 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "mismatched client" do
-      encoded = <<18>> <> <<96, 115, 2, 112>>
+      encoded = <<18>> <> <<96, 115, 2, 112>> <> <<96, 115, 2, 113>>
 
       assert encoded ==
                Protocol.encode_frame(
                  :connection_response,
-                 {:mismatched_client, @client_instantiated_at}
+                 {:mismatched_client, @client_instantiated_at, @client_instantiated_at + 1}
                )
 
-      assert {:connection_response, {:mismatched_client, @client_instantiated_at}} ==
+      assert {:connection_response,
+              {:mismatched_client, @client_instantiated_at, @client_instantiated_at + 1}} ==
                Protocol.decode_frame(encoded)
     end
 
     test "mismatched server" do
-      encoded = <<19>> <> <<96, 114, 63, 32>>
+      encoded = <<19>> <> <<96, 114, 63, 32>> <> <<96, 114, 63, 33>>
 
       assert encoded ==
                Protocol.encode_frame(
                  :connection_response,
-                 {:mismatched_server, @server_instantiated_at}
+                 {:mismatched_server, @server_instantiated_at, @server_instantiated_at + 1}
                )
 
-      assert {:connection_response, {:mismatched_server, @server_instantiated_at}} ==
+      assert {:connection_response,
+              {:mismatched_server, @server_instantiated_at, @server_instantiated_at + 1}} ==
                Protocol.decode_frame(encoded)
     end
 

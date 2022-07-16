@@ -59,11 +59,9 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
       stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
       stub(@mod_transport, :send, fn _, _ -> :ok end)
-      stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-      expect(@client_handler, :handle_connection_response, fn :ok -> :ok end)
-      stub(@server_handler, :up, fn _ -> :ok end)
-      stub(@client_handler, :up, fn -> :ok end)
+      stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :connected -> :ok end)
       stub(@server_handler, :down, fn _ -> :ok end)
+      expect(@client_handler, :handle_connection_response, fn :connected -> :ok end)
       stub(@client_handler, :down, fn -> :ok end)
 
       start_supervised!(
@@ -97,8 +95,6 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instantiated_ats, fn -> {1, nil} end)
       stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {nil, 2}} end)
       expect(@client_handler, :handle_connection_response, fn {:hello_new_client, 2} -> :ok end)
-      stub(@server_handler, :up, fn _ -> :ok end)
-      stub(@client_handler, :up, fn -> :ok end)
       stub(@server_handler, :down, fn _ -> :ok end)
       stub(@client_handler, :down, fn -> :ok end)
 
@@ -140,8 +136,6 @@ defmodule Sink.ConnectionTest do
         :ok
       end)
 
-      stub(@server_handler, :up, fn _ -> :ok end)
-      stub(@client_handler, :up, fn -> :ok end)
       stub(@server_handler, :down, fn _ -> :ok end)
       stub(@client_handler, :down, fn -> :ok end)
 
@@ -184,8 +178,6 @@ defmodule Sink.ConnectionTest do
         :ok
       end)
 
-      stub(@server_handler, :up, fn _ -> :ok end)
-      stub(@client_handler, :up, fn -> :ok end)
       stub(@server_handler, :down, fn _ -> :ok end)
       stub(@client_handler, :down, fn -> :ok end)
 
@@ -283,8 +275,6 @@ defmodule Sink.ConnectionTest do
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :up, fn _ -> :ok end)
-    stub(@client_handler, :up, fn -> :ok end)
     stub(@server_handler, :down, fn _ -> :ok end)
     stub(@client_handler, :down, fn -> :ok end)
 
@@ -342,8 +332,6 @@ defmodule Sink.ConnectionTest do
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :up, fn _ -> :ok end)
-    stub(@client_handler, :up, fn -> :ok end)
     stub(@server_handler, :down, fn _ -> :ok end)
     stub(@client_handler, :down, fn -> :ok end)
 
@@ -401,8 +389,6 @@ defmodule Sink.ConnectionTest do
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :up, fn _ -> :ok end)
-    stub(@client_handler, :up, fn -> :ok end)
     stub(@server_handler, :down, fn _ -> :ok end)
     stub(@client_handler, :down, fn -> :ok end)
 
@@ -460,8 +446,6 @@ defmodule Sink.ConnectionTest do
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :up, fn _ -> :ok end)
-    stub(@client_handler, :up, fn -> :ok end)
     stub(@server_handler, :down, fn _ -> :ok end)
     stub(@client_handler, :down, fn -> :ok end)
 
@@ -519,8 +503,6 @@ defmodule Sink.ConnectionTest do
     stub(@mod_transport, :send, fn _, _ -> :ok end)
     stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
     stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
-    stub(@server_handler, :up, fn _ -> :ok end)
-    stub(@client_handler, :up, fn -> :ok end)
     stub(@server_handler, :down, fn _ -> :ok end)
     stub(@client_handler, :down, fn -> :ok end)
 

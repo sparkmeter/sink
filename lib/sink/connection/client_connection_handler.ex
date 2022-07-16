@@ -21,11 +21,6 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @callback instantiated_ats() :: {non_neg_integer(), non_neg_integer() | nil}
 
   @doc """
-  The connection has been opened
-  """
-  @callback up() :: :ok
-
-  @doc """
   The connection has been closed
   """
   @callback down() :: :ok

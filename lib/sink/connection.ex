@@ -5,7 +5,7 @@ defmodule Sink.Connection do
 
   @type timestamp() :: non_neg_integer()
   @type connection_responses() ::
-          :ok
+          :connected
           | {:hello_new_client, timestamp()}
           | {:mismatched_client, timestamp()}
           | {:mismatched_server, timestamp()}

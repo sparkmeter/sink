@@ -8,6 +8,7 @@ defmodule Sink.Connection.ServerHandler do
   require Logger
   alias Sink.Connection
   alias Sink.Connection.Protocol
+  alias Sink.Connection.Server.ConnectionStatus
   alias Sink.Event
 
   @behaviour :ranch_protocol
@@ -25,6 +26,7 @@ defmodule Sink.Connection.ServerHandler do
       :handler,
       :ssl_opts,
       :connection_state,
+      :connection_status,
       :stats,
       :inflight
     ]
@@ -38,6 +40,7 @@ defmodule Sink.Connection.ServerHandler do
         handler: handler,
         ssl_opts: ssl_opts,
         connection_state: {:awaiting_connection_request, instantiated_ats},
+        connection_status: ConnectionStatus.init(instantiated_ats),
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
@@ -52,8 +55,8 @@ defmodule Sink.Connection.ServerHandler do
     quarantined. However, it is still useful to track status of clients that have a
     good network connection.
     """
-    def connected?(%State{connection_state: {connection_state_name, _}}) do
-      connection_state_name != :awaiting_connection_request
+    def connected?(%State{connection_state: connection_state}) do
+      ConnectionStatus.connected?(connection_state)
     end
 
     @doc """
@@ -62,8 +65,8 @@ defmodule Sink.Connection.ServerHandler do
     Clients that are quarantined or have mismatched instantiated_ats will be connected,
     but unable to send events.
     """
-    def active?(%State{connection_state: {connection_state_name, _}}) do
-      connection_state_name == :ok
+    def active?(%State{connection_state: connection_state}) do
+      ConnectionStatus.active?(connection_state)
     end
 
     def quarantine(state, reason) do
@@ -335,38 +338,20 @@ defmodule Sink.Connection.ServerHandler do
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
+        instantiated_ats = handler.instantiated_ats(client_id)
+        {client_instantiated_at, _} = instantiated_ats
+
         state =
-          case handler.instantiated_ats(client_id) do
-            {:ok, instantiated_ats} ->
-              {client_instantiated_at, _} = instantiated_ats
-
-              State.init(
-                {client_id, client_instantiated_at},
-                socket,
-                transport,
-                peername,
-                handler,
-                ssl_opts,
-                instantiated_ats,
-                now()
-              )
-
-            {:quarantined, reason} ->
-              {:ok, new_state} =
-                State.init(
-                  {client_id, nil},
-                  socket,
-                  transport,
-                  peername,
-                  handler,
-                  ssl_opts,
-                  nil,
-                  now()
-                )
-                |> State.quarantine(reason)
-
-              new_state
-          end
+          State.init(
+            {client_id, client_instantiated_at},
+            socket,
+            transport,
+            peername,
+            handler,
+            ssl_opts,
+            instantiated_ats,
+            now()
+          )
 
         :ok =
           case Registry.register(@registry, client_id, DateTime.utc_now()) do
@@ -409,7 +394,7 @@ defmodule Sink.Connection.ServerHandler do
       %{client_id: client_id, peername: state.peername, reason: reason}
     )
 
-    if State.connected?(state) do
+    if ConnectionStatus.connected?(state.connection_status) do
       :ok = state.handler.down(state.client)
     end
 
@@ -525,7 +510,7 @@ defmodule Sink.Connection.ServerHandler do
         %State{client: client, handler: handler} = state
       ) do
     client_id = State.client_id(state)
-    is_active = State.active?(state)
+    is_active = ConnectionStatus.active?(state.connection_status)
 
     {new_state, response_message} =
       message
@@ -539,13 +524,16 @@ defmodule Sink.Connection.ServerHandler do
           {new_state, {:connection_response, frame}}
 
         {:connection_request, _protocol_version, instantiated_ats} ->
-          # this is kind of ugly
-          {client_result, server_result, state_result} =
-            check_connection_request(state.connection_state, instantiated_ats)
+          {response, new_connection_state} =
+            ConnectionStatus.connection_request(state.connection_status, instantiated_ats)
 
-          frame = Connection.Protocol.encode_frame(:connection_response, client_result)
-          new_state = State.connection_response(state, state_result)
-          handler.handle_connection_response(new_state.client, server_result)
+          frame = Connection.Protocol.encode_frame(:connection_response, response)
+
+          {client_instantiated_at, _} = instantiated_ats
+          client = {client_id, client_instantiated_at}
+          new_state = %State{state | client: client, connection_state: new_connection_state}
+
+          handler.handle_connection_response(new_state.client, response)
           {new_state, {:connection_response, frame}}
 
         {:ack, message_id} when is_active ->
@@ -675,33 +663,6 @@ defmodule Sink.Connection.ServerHandler do
 
   def handle_info({:EXIT, _from, :normal}, state) do
     {:stop, :normal, state}
-  end
-
-  defp check_connection_request(
-         {:quarantined, reason},
-         _
-       ) do
-    {{:quarantined, reason}, {:quarantined, reason}, {:quarantined, reason}}
-  end
-
-  defp check_connection_request(
-         {:awaiting_connection_request, {s_c_at, s_s_at}},
-         {c_c_at, c_s_at}
-       ) do
-    cond do
-      {s_s_at, s_c_at} == {c_s_at, c_c_at} ->
-        {:ok, :ok, :ok}
-
-      # if the server has never seen the client and the client has never seen the server or know what server to expect
-      is_nil(s_c_at) && (is_nil(c_s_at) || s_s_at == c_s_at) ->
-        {{:hello_new_client, s_s_at}, :hello_new_client, {:hello_new_client, c_c_at}}
-
-      s_c_at != c_c_at ->
-        {{:mismatched_client, s_c_at}, {:mismatched_client, s_c_at}, {:mismatched_client, c_c_at}}
-
-      s_s_at != c_s_at ->
-        {{:mismatched_server, s_s_at}, {:mismatched_server, c_s_at}, {:mismatched_server, c_s_at}}
-    end
   end
 
   # Helpers
