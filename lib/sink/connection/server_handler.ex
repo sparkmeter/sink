@@ -533,7 +533,14 @@ defmodule Sink.Connection.ServerHandler do
           client = {client_id, client_instantiated_at}
           new_state = %State{state | client: client, connection_state: new_connection_state}
 
-          handler.handle_connection_response(new_state.client, response)
+          case response do
+            {:hello_new_client, _} ->
+              handler.handle_connection_response(new_state.client, :hello_new_client)
+
+            other ->
+              handler.handle_connection_response(new_state.client, other)
+          end
+
           {new_state, {:connection_response, frame}}
 
         {:ack, message_id} when is_active ->

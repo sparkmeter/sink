@@ -55,14 +55,14 @@ defmodule Sink.Connection.ClientConnection do
 
     def connection_response(
           %State{connection_state: {:requesting_connection, _}} = state,
-          {:mismatched_client, client_instantiated_at}
+          {:mismatched_client, client_instantiated_at, _expected}
         ) do
       %State{state | connection_state: {:mismatched_client, client_instantiated_at}}
     end
 
     def connection_response(
           %State{connection_state: {:requesting_connection, _}} = state,
-          {:mismatched_server, server_instantiated_at}
+          {:mismatched_server, server_instantiated_at, _expected}
         ) do
       %State{state | connection_state: {:mismatched_server, server_instantiated_at}}
     end

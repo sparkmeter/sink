@@ -1,6 +1,6 @@
 defmodule Sink.Connection.Server.ConnectionStatus do
   @moduledoc """
-  State machine that manages a connection's state and state changes
+  State machine that manages a connection's state and state transitions
   """
 
   defstruct [
@@ -106,52 +106,6 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     end
   end
 
-  #  def connection_response(
-  #          %State{connection_state: {:awaiting_connection_request, instantiated_ats}} = state,
-  #          :ok
-  #        ) do
-  #      %State{state | connection_state: {:ok, instantiated_ats}}
-  #    end
-  #
-  #    def connection_response(
-  #          %State{connection_state: {:awaiting_connection_request, {nil, server_at}}} = state,
-  #          {:hello_new_client, client_at}
-  #        ) do
-  #      id = client_id(state)
-  #      client = {id, client_at}
-  #      %State{state | connection_state: {:ok, {client_at, server_at}}, client: client}
-  #    end
-  #
-  #    def connection_response(
-  #          %State{connection_state: {:awaiting_connection_request, _}} = state,
-  #          {:mismatched_client, client_at}
-  #        ) do
-  #      id = client_id(state)
-  #      client = {id, client_at}
-  #      %State{state | connection_state: {:mismatched_client, client_at}, client: client}
-  #    end
-  #
-  #    def connection_response(
-  #          %State{connection_state: {:awaiting_connection_request, _}} = state,
-  #          {:mismatched_server, server_at}
-  #        ) do
-  #      %State{state | connection_state: {:mismatched_server, server_at}}
-  #    end
-  #
-  #    def connection_response(
-  #          %State{connection_state: {:quarantined, _}} = state,
-  #          {:quarantined, _}
-  #        ) do
-  #      state
-  #    end
-  #
-  #    def connection_response(
-  #          %State{connection_state: {:awaiting_connection_request, _}} = state,
-  #          {:unsupported_protocol_version, protocol_version}
-  #        ) do
-  #      %State{state | connection_state: {:unsupported_protocol_version, protocol_version}}
-  #    end
-  #
   #  def quarantine(state) do
   #  end
 

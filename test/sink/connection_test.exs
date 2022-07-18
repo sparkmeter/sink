@@ -129,15 +129,10 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, nil} end)
       stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {5, 2}} end)
-      expect(@client_handler, :handle_connection_response, fn {:mismatched_client, 5} -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
-                                                              {:mismatched_client, 5} ->
+      expect(@client_handler, :handle_connection_response, fn {:mismatched_client, 1, 5} ->
         :ok
       end)
-
-      stub(@server_handler, :down, fn _ -> :ok end)
-      stub(@client_handler, :down, fn -> :ok end)
 
       start_supervised!(
         {Sink.Connection.ServerListener,
@@ -171,15 +166,10 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, 5} end)
       stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
-      expect(@client_handler, :handle_connection_response, fn {:mismatched_server, 2} -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
-                                                              {:mismatched_server, 5} ->
+      expect(@client_handler, :handle_connection_response, fn {:mismatched_server, 5, 2} ->
         :ok
       end)
-
-      stub(@server_handler, :down, fn _ -> :ok end)
-      stub(@client_handler, :down, fn -> :ok end)
 
       start_supervised!(
         {Sink.Connection.ServerListener,
