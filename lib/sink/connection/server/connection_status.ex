@@ -32,17 +32,11 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   This will only be false if the connection request / response hasn't completed.
   """
   def connected?(state) do
-    state.connection_state != :awaiting_connection_request
+    state.connection_state == :connected
   end
 
-  @doc """
-  Should the connection be sending and receiving messages?
-
-  If the connection request / response has been completed and the client is not quarantined,
-  then this should be true.
-  """
-  def active?(state) do
-    state.connection_state == :connected
+  def should_disconnect?(state) do
+    state.connection_state == :disconnecting
   end
 
   def client_instantiated_at(state) do
@@ -54,27 +48,6 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     end
   end
 
-  def quarantine(state, reason) do
-    case state.connection_state do
-      :quarantined ->
-        {:error, :already_quarantined}
-      _ -> {:ok, %__MODULE__{state | connection_state: :quarantined, reason: reason}}
-    end
-  end
-
-  @doc """
-  Remove the client from quarantine so it can re-initiate the connection request / response
-  process.
-  """
-  def unquarantine(state, server_instantiated_ats) do
-    case state.connection_state do
-      :quarantined ->
-        {:ok, %__MODULE__{state | connection_state: :awaiting_connection_request, server_instantiated_ats: server_instantiated_ats, reason: nil}}
-      _ ->
-        {:error, :not_quarantined}
-    end
-  end
-
   @doc """
   Handle a connection request from a client.
 
@@ -83,6 +56,13 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   then the server will respond with what the mismatch is and either close the connection (tbd)
   or keep it connected, but not active.
   """
+  def connection_request(
+        %__MODULE__{} = state,
+        {:unsupported_protocol_version, _protocol_version}
+      ) do
+    %__MODULE__{state | connection_state: :disconnecting}
+  end
+
   def connection_request(%__MODULE__{connection_state: :quarantined} = state, _c_instantiated_ats) do
     {{:quarantined, state.reason}, state}
   end

@@ -82,9 +82,7 @@ defmodule Sink.ConnectionTest do
       Process.sleep(@time_to_connect)
 
       assert Sink.Connection.Client.connected?()
-      assert Sink.Connection.Client.active?()
       assert Sink.Connection.ServerHandler.connected?("abc123")
-      assert Sink.Connection.ServerHandler.active?("abc123")
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
@@ -117,9 +115,7 @@ defmodule Sink.ConnectionTest do
       Process.sleep(@time_to_connect)
 
       assert Sink.Connection.Client.connected?()
-      assert Sink.Connection.Client.active?()
       assert Sink.Connection.ServerHandler.connected?("abc123")
-      assert Sink.Connection.ServerHandler.active?("abc123")
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
@@ -131,6 +127,11 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {5, 2}} end)
 
       expect(@client_handler, :handle_connection_response, fn {:mismatched_client, 1, 5} ->
+        :ok
+      end)
+
+      expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
+                                                              {:mismatched_client, 1, 5} ->
         :ok
       end)
 
@@ -148,14 +149,12 @@ defmodule Sink.ConnectionTest do
 
       Process.sleep(@time_to_connect)
 
-      assert Sink.Connection.Client.connected?()
-      refute Sink.Connection.Client.active?()
-      assert Sink.Connection.ServerHandler.connected?("abc123")
-      refute Sink.Connection.ServerHandler.active?("abc123")
+      refute Sink.Connection.Client.connected?()
+      refute Sink.Connection.ServerHandler.connected?("abc123")
 
-      assert {:error, :inactive} == Sink.Connection.Client.publish(@event, @ack_key)
+      assert {:error, :no_connection} == Sink.Connection.Client.publish(@event, @ack_key)
 
-      assert {:error, :inactive} ==
+      assert {:error, :no_connection} ==
                Sink.Connection.ServerHandler.publish("abc123", @event, @ack_key)
 
       stop_supervised!(Sink.Connection.Client)
@@ -171,6 +170,11 @@ defmodule Sink.ConnectionTest do
         :ok
       end)
 
+      expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
+                                                              {:mismatched_server, 5, 2} ->
+        :ok
+      end)
+
       start_supervised!(
         {Sink.Connection.ServerListener,
          port: 9999, ssl_opts: server_ssl, handler: @server_handler}
@@ -185,16 +189,14 @@ defmodule Sink.ConnectionTest do
 
       Process.sleep(@time_to_connect)
 
-      assert Sink.Connection.Client.connected?()
-      refute Sink.Connection.Client.active?()
-      assert Sink.Connection.ServerHandler.connected?("abc123")
-      refute Sink.Connection.ServerHandler.active?("abc123")
+      refute Sink.Connection.Client.connected?()
+      refute Sink.Connection.ServerHandler.connected?("abc123")
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
     end
 
-    test "quarantined, then unquarantined", %{server_ssl: server_ssl, client_ssl: client_ssl} do
+    test "quarantined client", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       expected_response = {:quarantined, {<<1, 1, 1>>, "blocked"}}
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
@@ -222,30 +224,8 @@ defmodule Sink.ConnectionTest do
 
       # check that the client is connected, but not active
 
-      assert Sink.Connection.Client.connected?()
-      refute Sink.Connection.Client.active?()
-      assert Sink.Connection.ServerHandler.connected?("abc123")
-      refute Sink.Connection.ServerHandler.active?("abc123")
-
-      # unquarantine the client, check that the connection is active and the
-      # instantiated_ats are correct
-
-      stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
-      expect(@client_handler, :handle_connection_response, fn :unquarantined -> :ok end)
-      stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :connected -> :ok end)
-      stub(@server_handler, :down, fn _ -> :ok end)
-      expect(@client_handler, :handle_connection_response, fn :connected -> :ok end)
-      expect(@server_handler, :down, fn _ -> :ok end)
-      expect(@client_handler, :down, fn -> :ok end)
-
-      assert :ok == Sink.Connection.ServerHandler.unquarantine("abc123")
-
-      Process.sleep(10)
-
-      assert Sink.Connection.Client.connected?()
-      assert Sink.Connection.Client.active?()
-      assert Sink.Connection.ServerHandler.connected?("abc123")
-      assert Sink.Connection.ServerHandler.active?("abc123")
+      refute Sink.Connection.Client.connected?()
+      refute Sink.Connection.ServerHandler.connected?("abc123")
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
@@ -262,10 +242,10 @@ defmodule Sink.ConnectionTest do
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
     stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
-    stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
-    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :down, fn _ -> :ok end)
-    stub(@client_handler, :down, fn -> :ok end)
+    stub(@client_handler, :handle_connection_response, fn :connected -> :ok end)
+    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :connected -> :ok end)
+    expect(@server_handler, :down, fn _ -> :ok end)
+    expect(@client_handler, :down, fn -> :ok end)
 
     expect(
       @client_handler,
@@ -319,10 +299,10 @@ defmodule Sink.ConnectionTest do
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
     stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
-    stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
-    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :down, fn _ -> :ok end)
-    stub(@client_handler, :down, fn -> :ok end)
+    stub(@client_handler, :handle_connection_response, fn :connected -> :ok end)
+    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :connected -> :ok end)
+    expect(@server_handler, :down, fn _ -> :ok end)
+    expect(@client_handler, :down, fn -> :ok end)
 
     expect(
       @client_handler,
@@ -376,10 +356,10 @@ defmodule Sink.ConnectionTest do
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
     stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
-    stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
-    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :down, fn _ -> :ok end)
-    stub(@client_handler, :down, fn -> :ok end)
+    stub(@client_handler, :handle_connection_response, fn :connected -> :ok end)
+    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :connected -> :ok end)
+    expect(@server_handler, :down, fn _ -> :ok end)
+    expect(@client_handler, :down, fn -> :ok end)
 
     expect(
       @server_handler,
@@ -433,10 +413,10 @@ defmodule Sink.ConnectionTest do
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
     stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
-    stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
-    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@server_handler, :down, fn _ -> :ok end)
-    stub(@client_handler, :down, fn -> :ok end)
+    stub(@client_handler, :handle_connection_response, fn :connected -> :ok end)
+    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :connected -> :ok end)
+    expect(@server_handler, :down, fn _ -> :ok end)
+    expect(@client_handler, :down, fn -> :ok end)
 
     expect(
       @server_handler,
@@ -490,10 +470,10 @@ defmodule Sink.ConnectionTest do
     stub(@client_handler, :instantiated_ats, fn -> {1, 2} end)
     stub(@server_handler, :instantiated_ats, fn "abc123" -> {:ok, {1, 2}} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
-    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :ok -> :ok end)
-    stub(@client_handler, :handle_connection_response, fn :ok -> :ok end)
-    stub(@server_handler, :down, fn _ -> :ok end)
-    stub(@client_handler, :down, fn -> :ok end)
+    stub(@server_handler, :handle_connection_response, fn {"abc123", 1}, :connected -> :ok end)
+    stub(@client_handler, :handle_connection_response, fn :connected -> :ok end)
+    expect(@server_handler, :down, fn _ -> :ok end)
+    expect(@client_handler, :down, fn -> :ok end)
 
     expect(
       @server_handler,

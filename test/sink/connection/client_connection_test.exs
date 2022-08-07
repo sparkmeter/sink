@@ -268,10 +268,12 @@ defmodule Sink.Connection.ClientConnectionTest do
         schema_version: 1
       }
 
-      assert {:stop, :normal, {:error, :closed}, state} =
-               ClientConnection.handle_call({:publish, message, ack_key}, self(), @sample_state)
+      state = %ClientConnection.State{@sample_state | connection_state: {:connected, 2}}
 
-      assert state == @sample_state
+      assert {:stop, :normal, {:error, :closed}, new_state} =
+               ClientConnection.handle_call({:publish, message, ack_key}, self(), state)
+
+      assert new_state == state
     end
   end
 

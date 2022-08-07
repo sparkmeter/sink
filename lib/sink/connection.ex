@@ -10,7 +10,7 @@ defmodule Sink.Connection do
           | {:mismatched_client, timestamp()}
           | {:mismatched_server, timestamp()}
           | {:quarantined, binary(), binary()}
-          | :unquarantined
+          | :unsupported_protocol_version
 
   def next_message_id(nil) do
     Enum.random(0..@max_message_id)

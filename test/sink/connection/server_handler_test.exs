@@ -9,6 +9,7 @@ defmodule Sink.Connection.ServerHandlerTest do
   import ExUnit.CaptureLog
   import Mox
   alias Sink.Connection.{Inflight, Protocol, ServerHandler, Stats}
+  alias Sink.Connection.Server.ConnectionStatus
   alias Sink.Event
   alias Sink.TestEvent
 
@@ -22,7 +23,7 @@ defmodule Sink.Connection.ServerHandlerTest do
     socket: 123,
     transport: @mod_transport,
     peername: :fake,
-    connection_state: {:ok, {1, 2}},
+    connection_status: ConnectionStatus.init({:ok, {123, 2}}),
     handler: @handler,
     ssl_opts: :fake,
     inflight: %Inflight{
@@ -150,11 +151,10 @@ defmodule Sink.Connection.ServerHandlerTest do
 
     state = %ServerHandler.State{
       @sample_state
-      | client: {"test-client", nil},
-        connection_state: {:awaiting_connection_request, {1, 2}}
+      | client: {"test-client", nil}
     }
 
-    assert {:noreply, _new_state} =
+    assert {:stop, _new_state, _} =
              ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
 
     # teardown
@@ -436,10 +436,19 @@ defmodule Sink.Connection.ServerHandlerTest do
         schema_version: 1
       }
 
-      assert {:stop, :normal, {:error, :closed}, state} =
-               ServerHandler.handle_call({:publish, message, ack_key}, self(), @sample_state)
+      state = %ServerHandler.State{
+        @sample_state
+        | connection_status: %ConnectionStatus{
+            @sample_state.connection_status
+            | connection_state: :connected,
+              client_instantiated_ats: {1, 2}
+          }
+      }
 
-      assert state == @sample_state
+      assert {:stop, :normal, {:error, :closed}, new_state} =
+               ServerHandler.handle_call({:publish, message, ack_key}, self(), state)
+
+      assert new_state == state
     end
   end
 end

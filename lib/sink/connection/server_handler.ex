@@ -25,7 +25,6 @@ defmodule Sink.Connection.ServerHandler do
       :peername,
       :handler,
       :ssl_opts,
-      :connection_state,
       :connection_status,
       :stats,
       :inflight
@@ -39,7 +38,6 @@ defmodule Sink.Connection.ServerHandler do
         peername: peername,
         handler: handler,
         ssl_opts: ssl_opts,
-        connection_state: {:awaiting_connection_request, instantiated_ats},
         connection_status: ConnectionStatus.init(instantiated_ats),
         stats: Stats.init(now),
         inflight: Inflight.init()
@@ -47,102 +45,6 @@ defmodule Sink.Connection.ServerHandler do
     end
 
     def client_id(%State{client: {client_id, _}}), do: client_id
-
-    @doc """
-    Is the client connected to the server?
-
-    Note: a client may be connected, but not sending events - for example if it is
-    quarantined. However, it is still useful to track status of clients that have a
-    good network connection.
-    """
-    def connected?(%State{connection_state: connection_state}) do
-      ConnectionStatus.connected?(connection_state)
-    end
-
-    @doc """
-    Is the client connected to the server and able to send and receive events?
-
-    Clients that are quarantined or have mismatched instantiated_ats will be connected,
-    but unable to send events.
-    """
-    def active?(%State{connection_state: connection_state}) do
-      ConnectionStatus.active?(connection_state)
-    end
-
-    def quarantine(state, reason) do
-      case state.connection_state do
-        {c_state, _} when c_state in [:ok, :awaiting_connection_request] ->
-          {:ok, %State{state | connection_state: {:quarantined, reason}}}
-
-        _ ->
-          {:error, :bad_state}
-      end
-    end
-
-    def unquarantine(state, instantiated_ats) do
-      case state.connection_state do
-        {:quarantined, _} ->
-          {client_instantiated_at, _} = instantiated_ats
-          {client_id, _} = state.client
-          client = {client_id, client_instantiated_at}
-
-          {:ok,
-           %State{
-             state
-             | connection_state: {:awaiting_connection_request, instantiated_ats},
-               client: client
-           }}
-
-        _ ->
-          {:error, :bad_state}
-      end
-    end
-
-    def connection_response(
-          %State{connection_state: {:awaiting_connection_request, instantiated_ats}} = state,
-          :ok
-        ) do
-      %State{state | connection_state: {:ok, instantiated_ats}}
-    end
-
-    def connection_response(
-          %State{connection_state: {:awaiting_connection_request, {nil, server_at}}} = state,
-          {:hello_new_client, client_at}
-        ) do
-      id = client_id(state)
-      client = {id, client_at}
-      %State{state | connection_state: {:ok, {client_at, server_at}}, client: client}
-    end
-
-    def connection_response(
-          %State{connection_state: {:awaiting_connection_request, _}} = state,
-          {:mismatched_client, client_at}
-        ) do
-      id = client_id(state)
-      client = {id, client_at}
-      %State{state | connection_state: {:mismatched_client, client_at}, client: client}
-    end
-
-    def connection_response(
-          %State{connection_state: {:awaiting_connection_request, _}} = state,
-          {:mismatched_server, server_at}
-        ) do
-      %State{state | connection_state: {:mismatched_server, server_at}}
-    end
-
-    def connection_response(
-          %State{connection_state: {:quarantined, _}} = state,
-          {:quarantined, _}
-        ) do
-      state
-    end
-
-    def connection_response(
-          %State{connection_state: {:awaiting_connection_request, _}} = state,
-          {:unsupported_protocol_version, protocol_version}
-        ) do
-      %State{state | connection_state: {:unsupported_protocol_version, protocol_version}}
-    end
 
     def get_inflight(%State{} = state) do
       Inflight.get_inflight(state.inflight)
@@ -222,26 +124,6 @@ defmodule Sink.Connection.ServerHandler do
       {:error, :no_connection}
   end
 
-  def quarantine(client_id, {machine_message, human_message}) do
-    case whereis(client_id) do
-      nil -> {:error, :no_connection}
-      pid -> GenServer.call(pid, {:quarantine, {machine_message, human_message}})
-    end
-  catch
-    :exit, _ ->
-      {:error, :no_connection}
-  end
-
-  def unquarantine(client_id) do
-    case whereis(client_id) do
-      nil -> {:error, :no_connection}
-      pid -> GenServer.call(pid, :unquarantine)
-    end
-  catch
-    :exit, _ ->
-      {:error, :no_connection}
-  end
-
   def whereis(client_id) do
     @registry
     |> Registry.lookup(client_id)
@@ -258,6 +140,9 @@ defmodule Sink.Connection.ServerHandler do
       [] -> false
       [{pid, _}] -> GenServer.call(pid, :connected?)
     end
+  catch
+    :exit, _ ->
+      false
   end
 
   def active?(client_id) do
@@ -414,7 +299,9 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   def handle_call({:publish, event, ack_key}, _, state) do
-    with {:inactive, false} <- {:inactive, !State.active?(state)},
+    connected = !ConnectionStatus.connected?(state.connection_status)
+
+    with {:no_connection, false} <- {:no_connection, connected},
          {:inflight, false} <- {:inflight, State.inflight?(state, ack_key)} do
       payload = Protocol.encode_payload(:publish, event)
       encoded = Protocol.encode_frame(:publish, state.inflight.next_message_id, payload)
@@ -439,44 +326,8 @@ defmodule Sink.Connection.ServerHandler do
     end
   end
 
-  def handle_call({:quarantine, {machine_message, human_message}}, _, state) do
-    case ConnectionStatus.unquarantine(state.connection_status, {machine_message, human_message}) do
-      {:ok, new_state} ->
-        encoded =
-          Protocol.encode_frame(
-            :connection_response,
-            {:quarantined, {machine_message, human_message}}
-          )
-
-        case state.transport.send(state.socket, encoded) do
-          :ok -> {:reply, :ok, new_state}
-          {:error, _} = err -> {:stop, :normal, err, state}
-        end
-    end
-  end
-
-  def handle_call(:unquarantine, _, state) do
-    {client_id, _} = state.client
-    {:ok, instantiated_ats} = state.handler.instantiated_ats(client_id)
-
-    case ConnectionStatus.unquarantine(state.connection_status, instantiated_ats) do
-      {:ok, new_c_status} ->
-        encoded = Protocol.encode_frame(:connection_response, :unquarantined)
-
-        case state.transport.send(state.socket, encoded) do
-          :ok -> {:reply, :ok, %State{state | connection_status: new_c_status}}
-          {:error, _} = err ->
-            {:stop, :normal, err, state}
-        end
-    end
-  end
-
   def handle_call(:connected?, _from, state) do
     {:reply, ConnectionStatus.connected?(state.connection_status), state}
-  end
-
-  def handle_call(:active?, _from, state) do
-    {:reply, ConnectionStatus.active?(state.connection_status), state}
   end
 
   def handle_call(:get_inflight, _from, state) do
@@ -511,7 +362,6 @@ defmodule Sink.Connection.ServerHandler do
         %State{client: client, handler: handler} = state
       ) do
     client_id = State.client_id(state)
-    is_active = ConnectionStatus.active?(state.connection_status)
 
     {new_state, response_message} =
       message
@@ -520,7 +370,11 @@ defmodule Sink.Connection.ServerHandler do
         {:error, :unsupported_protocol_version, protocol_version} ->
           result = {:unsupported_protocol_version, protocol_version}
           frame = Connection.Protocol.encode_frame(:connection_response, result)
-          new_state = State.connection_response(state, result)
+
+          new_connection_status =
+            ConnectionStatus.connection_request(state.connection_status, result)
+
+          new_state = %State{state | connection_status: new_connection_status}
           handler.handle_connection_response(new_state.client, result)
           # todo: close connection
           {new_state, {:connection_response, frame}}
@@ -545,7 +399,7 @@ defmodule Sink.Connection.ServerHandler do
 
           {new_state, {:connection_response, frame}}
 
-        {:ack, message_id} when is_active ->
+        {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
           {event_type_id, _, _} = ack_key
           Sink.Telemetry.ack(:received, %{client_id: client_id, event_type_id: event_type_id})
@@ -568,7 +422,7 @@ defmodule Sink.Connection.ServerHandler do
           :ok = handler.handle_nack(client, ack_key, nack_data)
           {new_state, nil}
 
-        {:publish, message_id, payload} when is_active ->
+        {:publish, message_id, payload} ->
           event = Connection.Protocol.decode_payload(:publish, payload)
 
           Sink.Telemetry.publish(:received, %{
@@ -645,7 +499,12 @@ defmodule Sink.Connection.ServerHandler do
         case state.transport.send(state.socket, message) do
           :ok ->
             new_state = new_state |> callback.() |> State.log_sent(now())
-            {:noreply, new_state}
+
+            if ConnectionStatus.should_disconnect?(new_state.connection_status) do
+              {:stop, :normal, new_state}
+            else
+              {:noreply, new_state}
+            end
 
           {:error, _} ->
             {:stop, :normal, new_state}
