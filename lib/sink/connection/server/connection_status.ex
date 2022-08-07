@@ -26,12 +26,65 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     end
   end
 
+  @doc """
+  Is the client connected?
+
+  This will only be false if the connection request / response hasn't completed.
+  """
   def connected?(state) do
     state.connection_state != :awaiting_connection_request
   end
 
+  @doc """
+  Should the connection be sending and receiving messages?
+
+  If the connection request / response has been completed and the client is not quarantined,
+  then this should be true.
+  """
   def active?(state) do
     state.connection_state == :connected
+  end
+
+  def client_instantiated_at(state) do
+    if state.client_instantiated_ats do
+      {c_instantiated_at, _} = state.client_instantiated_ats
+      c_instantiated_at
+    else
+      nil
+    end
+  end
+
+  def quarantine(state, reason) do
+    case state.connection_state do
+      :quarantined ->
+        {:error, :already_quarantined}
+      _ -> {:ok, %__MODULE__{state | connection_state: :quarantined, reason: reason}}
+    end
+  end
+
+  @doc """
+  Remove the client from quarantine so it can re-initiate the connection request / response
+  process.
+  """
+  def unquarantine(state, server_instantiated_ats) do
+    case state.connection_state do
+      :quarantined ->
+        {:ok, %__MODULE__{state | connection_state: :awaiting_connection_request, server_instantiated_ats: server_instantiated_ats, reason: nil}}
+      _ ->
+        {:error, :not_quarantined}
+    end
+  end
+
+  @doc """
+  Handle a connection request from a client.
+
+  When a server receives a connection request message it checks the message details against
+  what it expects for that client to ensure everything matches. If something does not match
+  then the server will respond with what the mismatch is and either close the connection (tbd)
+  or keep it connected, but not active.
+  """
+  def connection_request(%__MODULE__{connection_state: :quarantined} = state, _c_instantiated_ats) do
+    {{:quarantined, state.reason}, state}
   end
 
   def connection_request(state, c_instantiated_ats) do
@@ -68,7 +121,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
         {{:mismatched_client, c_c_instantiated_at, s_c_instantiated_at},
          %__MODULE__{
            state
-           | connection_state: :mismatched_client,
+           | connection_state: :disconnecting,
              client_instantiated_ats: c_instantiated_ats
          }}
 
@@ -79,7 +132,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
         {{:mismatched_server, c_s_instantiated_at, s_s_instantiated_at},
          %__MODULE__{
            state
-           | connection_state: :mismatched_server,
+           | connection_state: :disconnecting,
              client_instantiated_ats: c_instantiated_ats
          }}
     end
@@ -105,10 +158,4 @@ defmodule Sink.Connection.Server.ConnectionStatus do
         :mismatched_server
     end
   end
-
-  #  def quarantine(state) do
-  #  end
-
-  #  def unquarantine(state) do
-  #  end
 end

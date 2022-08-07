@@ -440,7 +440,7 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   def handle_call({:quarantine, {machine_message, human_message}}, _, state) do
-    case State.quarantine(state, {machine_message, human_message}) do
+    case ConnectionStatus.unquarantine(state.connection_status, {machine_message, human_message}) do
       {:ok, new_state} ->
         encoded =
           Protocol.encode_frame(
@@ -459,23 +459,24 @@ defmodule Sink.Connection.ServerHandler do
     {client_id, _} = state.client
     {:ok, instantiated_ats} = state.handler.instantiated_ats(client_id)
 
-    case State.unquarantine(state, instantiated_ats) do
-      {:ok, new_state} ->
+    case ConnectionStatus.unquarantine(state.connection_status, instantiated_ats) do
+      {:ok, new_c_status} ->
         encoded = Protocol.encode_frame(:connection_response, :unquarantined)
 
         case state.transport.send(state.socket, encoded) do
-          :ok -> {:reply, :ok, new_state}
-          {:error, _} = err -> {:stop, :normal, err, state}
+          :ok -> {:reply, :ok, %State{state | connection_status: new_c_status}}
+          {:error, _} = err ->
+            {:stop, :normal, err, state}
         end
     end
   end
 
   def handle_call(:connected?, _from, state) do
-    {:reply, State.connected?(state), state}
+    {:reply, ConnectionStatus.connected?(state.connection_status), state}
   end
 
   def handle_call(:active?, _from, state) do
-    {:reply, State.active?(state), state}
+    {:reply, ConnectionStatus.active?(state.connection_status), state}
   end
 
   def handle_call(:get_inflight, _from, state) do
@@ -521,17 +522,18 @@ defmodule Sink.Connection.ServerHandler do
           frame = Connection.Protocol.encode_frame(:connection_response, result)
           new_state = State.connection_response(state, result)
           handler.handle_connection_response(new_state.client, result)
+          # todo: close connection
           {new_state, {:connection_response, frame}}
 
         {:connection_request, _protocol_version, instantiated_ats} ->
-          {response, new_connection_state} =
+          {response, new_connection_status} =
             ConnectionStatus.connection_request(state.connection_status, instantiated_ats)
 
           frame = Connection.Protocol.encode_frame(:connection_response, response)
 
-          {client_instantiated_at, _} = instantiated_ats
+          client_instantiated_at = ConnectionStatus.client_instantiated_at(new_connection_status)
           client = {client_id, client_instantiated_at}
-          new_state = %State{state | client: client, connection_state: new_connection_state}
+          new_state = %State{state | client: client, connection_status: new_connection_status}
 
           case response do
             {:hello_new_client, _} ->
