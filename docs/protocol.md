@@ -10,7 +10,7 @@ When a client connects to a server is sends a connection request to tell the ser
 
 The server responds to a client's connection with one of the following responses:
 
-### OK
+### Connected
 
 The server agrees that the client is who the server expects and the server is who the client expected.
 
@@ -20,23 +20,19 @@ The server has accepted the new clien'ts connection and is telling the client it
 
 ### Mismatched Client
 
-The client's instantiated_at was not what the server expected. Events should not be sent or received.
+The client's instantiated_at was not what the server expected. The connection will close.
 
 ### Mismatched Server
 
-The server's instantiated_at was not what the client expected. Events should not be sent or received.
+The server's instantiated_at was not what the client expected. The connection will close.
 
 ### Quarantined
 
-The client should either disconnect or stay connected with an infrequent ping, but not send or receive messages. The server will not send messages to or receive messages from the client until the client has been removed from quarantine by the server. The client is removed from quarantine when the server sends a `UNQUARANTINED` connection response.
-
-### Unquarantined
-
-The client has been removed from quarantine and may send and receive events.
+The client has been quarantined and the connection will close. The client may retry at a later point.
 
 ### Unsupported Protocol Version
 
-The client requested to use a protocol version the server does not support. The client should either disconnect or stay connected with an infrequent ping.
+The client requested to use a protocol version the server does not support. The connection will close.
 
 ## PUBLISH
 
