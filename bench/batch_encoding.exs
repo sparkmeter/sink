@@ -48,7 +48,7 @@ defmodule BatchEncoding do
   ]
 
   @doc """
-  Convert a snapshot from gladys into a simpler to use format
+  Load events from snapshot file and export them to a new file using term_to_binary
   """
   def snapshot_to_binary(input \\ "snapshot.sink") do
     raw = File.read!(input)
