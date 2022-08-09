@@ -9,6 +9,7 @@ defmodule Sink.Connection.ClientConnectionTest do
   import ExUnit.CaptureLog
   import Mox
   alias Sink.Connection.{ClientConnection, Inflight, Protocol, Stats}
+  alias Sink.Connection.Client.ConnectionStatus
   alias Sink.Event
   alias Sink.TestEvent
 
@@ -21,7 +22,7 @@ defmodule Sink.Connection.ClientConnectionTest do
     peername: :fake,
     handler: @handler,
     transport: @mod_transport,
-    connection_state: {:ok, {1, 2}},
+    connection_status: ConnectionStatus.init({1, 2}),
     inflight: %Inflight{
       next_message_id: 100
     },
@@ -268,7 +269,12 @@ defmodule Sink.Connection.ClientConnectionTest do
         schema_version: 1
       }
 
-      state = %ClientConnection.State{@sample_state | connection_state: {:connected, 2}}
+      connection_status =
+        {1, 2}
+        |> ConnectionStatus.init()
+        |> ConnectionStatus.connection_response(:connected)
+
+      state = %ClientConnection.State{@sample_state | connection_status: connection_status}
 
       assert {:stop, :normal, {:error, :closed}, new_state} =
                ClientConnection.handle_call({:publish, message, ack_key}, self(), state)

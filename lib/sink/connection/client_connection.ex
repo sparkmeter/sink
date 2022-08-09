@@ -4,6 +4,7 @@ defmodule Sink.Connection.ClientConnection do
   """
   use GenServer
   require Logger
+  alias Sink.Connection.Client.ConnectionStatus
   alias Sink.Connection.Protocol
 
   defmodule State do
@@ -14,7 +15,7 @@ defmodule Sink.Connection.ClientConnection do
       :peername,
       :handler,
       :transport,
-      :connection_state,
+      :connection_status,
       :stats,
       :inflight
     ]
@@ -24,53 +25,25 @@ defmodule Sink.Connection.ClientConnection do
         socket: socket,
         handler: handler,
         transport: transport,
-        connection_state: {:requesting_connection, instantiated_ats},
+        connection_status: ConnectionStatus.init(instantiated_ats),
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
     end
 
-    def connected?(%State{connection_state: {connection_state_name, _}}) do
-      connection_state_name == :connected
+    def connected?(state) do
+      ConnectionStatus.connected?(state.connection_status)
     end
 
-    def connection_response(
-          %State{connection_state: {:requesting_connection, instantiated_ats}} = state,
-          :connected
-        ) do
-      %State{state | connection_state: {:connected, instantiated_ats}}
-    end
-
-    def connection_response(
-          %State{connection_state: {:requesting_connection, {client_instantiated_at, nil}}} =
-            state,
-          {:hello_new_client, server_instantiated_at}
-        ) do
-      %State{
+    def connection_response(state, result) do
+      %__MODULE__{
         state
-        | connection_state: {:connected, {client_instantiated_at, server_instantiated_at}}
+        | connection_status: ConnectionStatus.connection_response(state.connection_status, result)
       }
     end
 
-    def connection_response(
-          %State{connection_state: {:requesting_connection, _}} = state,
-          {:mismatched_client, client_instantiated_at, _expected}
-        ) do
-      %State{state | connection_state: {:disconnecting, client_instantiated_at}}
-    end
-
-    def connection_response(
-          %State{connection_state: {:requesting_connection, _}} = state,
-          {:mismatched_server, server_instantiated_at, _expected}
-        ) do
-      %State{state | connection_state: {:disconnecting, server_instantiated_at}}
-    end
-
-    def connection_response(
-          %State{connection_state: {:requesting_connection, _}} = state,
-          {:quarantined, reason}
-        ) do
-      %State{state | connection_state: {:disconnecting, reason}}
+    def instantiated_ats(state) do
+      ConnectionStatus.instantiated_ats(state.connection_status)
     end
 
     def get_inflight(%State{} = state) do
@@ -151,13 +124,6 @@ defmodule Sink.Connection.ClientConnection do
       false
   end
 
-  def active?() do
-    GenServer.call(__MODULE__, :active?)
-  catch
-    :exit, _ ->
-      false
-  end
-
   def get_inflight() do
     {:ok, GenServer.call(__MODULE__, :get_inflight)}
   catch
@@ -203,7 +169,7 @@ defmodule Sink.Connection.ClientConnection do
   end
 
   def handle_continue(:send_connection_request, state) do
-    {:requesting_connection, instantiated_ats} = state.connection_state
+    instantiated_ats = State.instantiated_ats(state)
     frame = Protocol.encode_frame(:connection_request, instantiated_ats)
 
     case state.transport.send(state.socket, frame) do
@@ -385,8 +351,6 @@ defmodule Sink.Connection.ClientConnection do
         :pong ->
           Sink.Telemetry.pong(:received, %{})
           {state, nil}
-
-          # todo: handle events when connection is not active
       end
 
     new_state = State.log_received(new_state, now())

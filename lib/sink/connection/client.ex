@@ -101,23 +101,9 @@ defmodule Sink.Connection.Client do
 
   @doc """
   Is the client connected to the server?
-
-  Note: a client may be connected, but not sending events - for example if it is
-  quarantined. However, it is still useful to track status of clients that have a
-  good network connection.
   """
   def connected? do
     ClientConnection.connected?()
-  end
-
-  @doc """
-  Is the client connected to the server and able to send and receive events?
-
-  Clients that are quarantined or have mismatched instantiated_ats will be connected,
-  but unable to send events.
-  """
-  def active? do
-    ClientConnection.active?()
   end
 
   @doc """
