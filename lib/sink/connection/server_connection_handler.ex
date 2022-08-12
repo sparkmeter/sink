@@ -21,13 +21,17 @@ defmodule Sink.Connection.ServerConnectionHandler do
   haven't been wiped or reset between the last connection. See the connection
   request/response documentation for more.
 
-  todo: call this something other than instantiated_ats since it also checks if the client
-  is quarantined.
+  todo: consider coming up with a different name for this
   """
 
   @callback instantiated_ats(client_id()) ::
               {:ok, non_neg_integer() | nil, non_neg_integer()}
               | {:quarantined, {binary(), binary()}}
+
+  @doc """
+  Check that the client's firmware version is compatible with the server.
+  """
+  @callback supported_version?(client_id(), String.t()) :: boolean()
 
   @doc """
   The connection has been closed

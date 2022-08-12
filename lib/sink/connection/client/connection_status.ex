@@ -70,4 +70,11 @@ defmodule Sink.Connection.Client.ConnectionStatus do
       ) do
     %__MODULE__{state | connection_state: :disconnecting, reason: reason}
   end
+
+  def connection_response(
+        %__MODULE__{connection_state: :requesting_connection} = state,
+        :unsupported_application_version
+      ) do
+    %__MODULE__{state | connection_state: :disconnecting}
+  end
 end

@@ -7,6 +7,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     :connection_state,
     :client_instantiated_ats,
     :server_instantiated_ats,
+    :application_version,
     :reason
   ]
 
@@ -48,6 +49,10 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     end
   end
 
+  def unsupported_application_version(%__MODULE__{} = state) do
+    %__MODULE__{state | connection_state: :disconnecting}
+  end
+
   @doc """
   Handle a connection request from a client.
 
@@ -63,11 +68,15 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     %__MODULE__{state | connection_state: :disconnecting}
   end
 
-  def connection_request(%__MODULE__{connection_state: :quarantined} = state, _c_instantiated_ats) do
+  def connection_request(
+        %__MODULE__{connection_state: :quarantined} = state,
+        _version,
+        _c_instantiated_ats
+      ) do
     {{:quarantined, state.reason}, state}
   end
 
-  def connection_request(state, c_instantiated_ats) do
+  def connection_request(state, version, c_instantiated_ats) do
     case check_connection_request(
            state.connection_state,
            state.server_instantiated_ats,
@@ -78,7 +87,8 @@ defmodule Sink.Connection.Server.ConnectionStatus do
          %__MODULE__{
            state
            | connection_state: :connected,
-             client_instantiated_ats: c_instantiated_ats
+             client_instantiated_ats: c_instantiated_ats,
+             application_version: version
          }}
 
       :hello_new_client ->
@@ -91,7 +101,8 @@ defmodule Sink.Connection.Server.ConnectionStatus do
            state
            | connection_state: :connected,
              server_instantiated_ats: new_s_instantiated_ats,
-             client_instantiated_ats: c_instantiated_ats
+             client_instantiated_ats: c_instantiated_ats,
+             application_version: version
          }}
 
       :mismatched_client ->
@@ -102,7 +113,8 @@ defmodule Sink.Connection.Server.ConnectionStatus do
          %__MODULE__{
            state
            | connection_state: :disconnecting,
-             client_instantiated_ats: c_instantiated_ats
+             client_instantiated_ats: c_instantiated_ats,
+             application_version: version
          }}
 
       :mismatched_server ->
@@ -113,7 +125,8 @@ defmodule Sink.Connection.Server.ConnectionStatus do
          %__MODULE__{
            state
            | connection_state: :disconnecting,
-             client_instantiated_ats: c_instantiated_ats
+             client_instantiated_ats: c_instantiated_ats,
+             application_version: version
          }}
     end
   end

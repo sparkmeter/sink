@@ -169,8 +169,9 @@ defmodule Sink.Connection.ClientConnection do
   end
 
   def handle_continue(:send_connection_request, state) do
+    version = state.handler.version()
     instantiated_ats = State.instantiated_ats(state)
-    frame = Protocol.encode_frame(:connection_request, instantiated_ats)
+    frame = Protocol.encode_frame(:connection_request, {version, instantiated_ats})
 
     case state.transport.send(state.socket, frame) do
       :ok -> {:noreply, state}

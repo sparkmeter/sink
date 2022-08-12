@@ -379,9 +379,18 @@ defmodule Sink.Connection.ServerHandler do
           # todo: close connection
           {new_state, {:connection_response, frame}}
 
-        {:connection_request, _protocol_version, instantiated_ats} ->
+        {:connection_request, _protocol_version, {version, instantiated_ats}} ->
           {response, new_connection_status} =
-            ConnectionStatus.connection_request(state.connection_status, instantiated_ats)
+            if state.handler.supported_version?(client_id, version) do
+              ConnectionStatus.connection_request(
+                state.connection_status,
+                version,
+                instantiated_ats
+              )
+            else
+              {:unsupported_application_version,
+               ConnectionStatus.unsupported_application_version(state.connection_status)}
+            end
 
           frame = Connection.Protocol.encode_frame(:connection_response, response)
 

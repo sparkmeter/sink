@@ -8,6 +8,8 @@ defmodule Sink.Connection.ProtocolTest do
   @client_instantiated_at 1_618_150_000
   @server_instantiated_at 1_618_100_000
   @unix_now 1_618_150_125
+  @version "1.0.0"
+  @version_chunk Varint.LEB128.encode(byte_size(@version)) <> @version
 
   describe "encode_frame" do
     @tag :skip
@@ -84,28 +86,33 @@ defmodule Sink.Connection.ProtocolTest do
   end
 
   describe "connection_request" do
-    test "encodes request with no instantiated_server_timestamp" do
+    test "encodes request with a version and no instantiated_server_timestamp" do
       # <<1_618_150_000::integer-size(32)>> = <<96, 115, 2, 112>>
-      encoded = <<8>> <> <<96, 115, 2, 112>>
 
-      assert encoded ==
-               Protocol.encode_frame(:connection_request, {@client_instantiated_at, nil})
-
-      assert {:connection_request, 8, {@client_instantiated_at, nil}} ==
-               Protocol.decode_frame(encoded)
-    end
-
-    test "encodes request with a server_instantiated_at" do
-      # <<1_618_100_000::integer-size(32)>> = <<96, 114, 63, 32>>
-      encoded = <<8>> <> <<96, 115, 2, 112>> <> <<96, 114, 63, 32>>
+      encoded = <<8>> <> @version_chunk <> <<96, 115, 2, 112>>
 
       assert encoded ==
                Protocol.encode_frame(
                  :connection_request,
-                 {@client_instantiated_at, @server_instantiated_at}
+                 {@version, {@client_instantiated_at, nil}}
                )
 
-      assert {:connection_request, 8, {@client_instantiated_at, @server_instantiated_at}} ==
+      assert {:connection_request, 8, {@version, {@client_instantiated_at, nil}}} ==
+               Protocol.decode_frame(encoded)
+    end
+
+    test "encodes request with a version and no server_instantiated_at" do
+      # <<1_618_100_000::integer-size(32)>> = <<96, 114, 63, 32>>
+      encoded = <<8>> <> @version_chunk <> <<96, 115, 2, 112>> <> <<96, 114, 63, 32>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_request,
+                 {@version, {@client_instantiated_at, @server_instantiated_at}}
+               )
+
+      assert {:connection_request, 8,
+              {@version, {@client_instantiated_at, @server_instantiated_at}}} ==
                Protocol.decode_frame(encoded)
     end
   end
@@ -181,6 +188,19 @@ defmodule Sink.Connection.ProtocolTest do
                )
 
       assert {:connection_response, {:unsupported_protocol_version, 11}} =
+               Protocol.decode_frame(encoded)
+    end
+
+    test "unsupported application version" do
+      encoded = <<22>>
+
+      assert encoded ==
+               Protocol.encode_frame(
+                 :connection_response,
+                 :unsupported_application_version
+               )
+
+      assert {:connection_response, :unsupported_application_version} =
                Protocol.decode_frame(encoded)
     end
   end
