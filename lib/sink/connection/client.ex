@@ -62,23 +62,23 @@ defmodule Sink.Connection.Client do
     end
 
     def backoff(%State{connect_attempt_interval: @first_connect_attempt} = state) do
-      %State{state | connect_attempt_interval: 1_000}
+      %State{state | connect_attempt_interval: add_jitter(1_000)}
     end
 
     def backoff(%State{connect_attempt_interval: 1_000} = state) do
-      %State{state | connect_attempt_interval: 5_000}
+      %State{state | connect_attempt_interval: add_jitter(5_000)}
     end
 
     def backoff(%State{connect_attempt_interval: 5_000} = state) do
-      %State{state | connect_attempt_interval: 30_000}
+      %State{state | connect_attempt_interval: add_jitter(30_000)}
     end
 
     def backoff(%State{connect_attempt_interval: 10_000} = state) do
-      %State{state | connect_attempt_interval: 60_000}
+      %State{state | connect_attempt_interval: add_jitter(60_000)}
     end
 
     def backoff(%State{connect_attempt_interval: _} = state) do
-      %State{state | connect_attempt_interval: 300_000}
+      %State{state | connect_attempt_interval: add_jitter(300_000)}
     end
 
     def connected(%State{} = state, connection_pid) do
@@ -95,6 +95,11 @@ defmodule Sink.Connection.Client do
         disconnect_reason: reason,
         disconnect_time: now
       )
+    end
+
+    defp add_jitter(interval) do
+      variance = div(interval, 10)
+      interval + Enum.random(-variance..variance)
     end
   end
 
