@@ -451,4 +451,38 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert new_state == state
     end
   end
+
+  describe "remove me after connection request is deployed" do
+    setup do
+      existing = Application.get_env(:sink, :require_connection_request)
+      Application.put_env(:sink, :require_connection_request, false)
+
+      on_exit(fn ->
+        Application.put_env(:sink, :require_connection_request, existing)
+      end)
+
+      :ok
+    end
+
+    test "sends an event" do
+      event = %TestEvent{key: <<1, 2, 3>>, offset: 1, message: "hi!"}
+      event_type_id = 1
+      ack_key = {event_type_id, event.key, event.offset}
+
+      message = %Event{
+        event_type_id: 1,
+        key: <<1, 2>>,
+        offset: 1,
+        timestamp: 1_618_150_125,
+        event_data: "Hi",
+        schema_version: 3
+      }
+
+      expect(@mod_transport, :send, fn _, _ -> :ok end)
+
+      # assert :ok == ServerHandler.publish("fake", message, {1, <<>>, 3})
+      state = @sample_state
+      ServerHandler.handle_call({:publish, message, ack_key}, self(), state)
+    end
+  end
 end

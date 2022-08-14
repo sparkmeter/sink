@@ -33,7 +33,9 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   This will only be false if the connection request / response hasn't completed.
   """
   def connected?(state) do
-    state.connection_state == :connected
+    # todo: remove this app env after connection request has been deployed
+    !Application.get_env(:sink, :require_connection_request) ||
+      state.connection_state == :connected
   end
 
   def should_disconnect?(state) do
