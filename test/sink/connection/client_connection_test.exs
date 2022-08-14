@@ -34,6 +34,7 @@ defmodule Sink.Connection.ClientConnectionTest do
     }
   }
   @protocol_version 8
+  @version "1.0.0"
   @unix_now 1_618_150_125
 
   setup :set_mox_from_context
@@ -286,6 +287,7 @@ defmodule Sink.Connection.ClientConnectionTest do
   describe "terminate" do
     test "does not call handler.down()if the connection response wasn't received" do
       expect(@handler, :instantiated_ats, fn -> {1, 2} end)
+      expect(@handler, :version, fn -> @version end)
       expect(@mod_transport, :send, fn _, _ -> :ok end)
 
       {:ok, connection} =
@@ -307,9 +309,13 @@ defmodule Sink.Connection.ClientConnectionTest do
         {1, 2}
       end)
 
+      expect(@handler, :version, fn -> @version end)
+
       # check for connection request
       expect(@mod_transport, :send, fn _, frame ->
-        assert {:connection_request, @protocol_version, {1, 2}} = Protocol.decode_frame(frame)
+        assert {:connection_request, @protocol_version, {@version, {1, 2}}} =
+                 Protocol.decode_frame(frame)
+
         :ok
       end)
 

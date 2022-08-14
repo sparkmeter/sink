@@ -4,7 +4,16 @@ This document describes the Sink protocol. It is a work in progress.
 
 ## Connection Request
 
-When a client connects to a server is sends a connection request to tell the server what protocol version it wants to use and to confirm the client and server have not reset their database or been reset since the last connection. This prevents mistakes such as pointing a device that used to connect to a staging environment from sending data to productino or a device that has been wiped from receiving or sending events to a server that expects the device to be in a different state.
+When a client connects to a server it sends a connection request to tell the server several
+attributes about itself and what it expects from the server. This is to ensure that the client and server are compatible and are who each other expects.
+
+The attributes are:
+* protocol version - the version of Sink the client is requesting to use
+* client_instantiated_at - timestamp of when the client was created
+* server_instantiated_at - timestamp of when the client thinks the server was created
+* application_version
+
+The instantiated ats are intended to prevent devices who may authenticate fine, but have different histories than the other expects. For example, if a device used to connect to a staging environment also has somehow has credentials in production or if a device was wiped and no longer has the same history the server expects.
 
 ## Connection Response
 
@@ -33,6 +42,10 @@ The client has been quarantined and the connection will close. The client may re
 ### Unsupported Protocol Version
 
 The client requested to use a protocol version the server does not support. The connection will close.
+
+### Unsupported Application Version
+
+The client is running an outdated or otherwise unsupported version the server does not support. The connection will close. The client should update and then try again.
 
 ## PUBLISH
 

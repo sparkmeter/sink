@@ -29,7 +29,8 @@ defmodule Sink.Connection.Client do
       :transport,
       :connect_attempt_interval,
       :disconnect_reason,
-      :disconnect_time
+      :disconnect_time,
+      :connection_request_succeeded
     ]
 
     @first_connect_attempt 50
@@ -51,7 +52,8 @@ defmodule Sink.Connection.Client do
         handler: handler,
         transport: transport,
         connect_attempt_interval: @first_connect_attempt,
-        disconnect_time: nil
+        disconnect_time: nil,
+        connection_request_succeeded: false
       }
     end
 
@@ -68,24 +70,27 @@ defmodule Sink.Connection.Client do
     end
 
     def backoff(%State{connect_attempt_interval: 5_000} = state) do
-      %State{state | connect_attempt_interval: 10_000}
+      %State{state | connect_attempt_interval: 30_000}
     end
 
     def backoff(%State{connect_attempt_interval: 10_000} = state) do
-      %State{state | connect_attempt_interval: 20_000}
+      %State{state | connect_attempt_interval: 60_000}
     end
 
     def backoff(%State{connect_attempt_interval: _} = state) do
-      %State{state | connect_attempt_interval: 30_000}
+      %State{state | connect_attempt_interval: 300_000}
     end
 
     def connected(%State{} = state, connection_pid) do
       %State{state | connection_pid: connection_pid}
     end
 
+    def connection_request_succeeded(%State{} = state) do
+      %State{state | connection_request_succeeded: true, connect_attempt_interval: nil}
+    end
+
     def disconnected(%State{} = state, reason, now) do
       struct!(state,
-        connect_attempt_interval: nil,
         connection_pid: nil,
         disconnect_reason: reason,
         disconnect_time: now
@@ -194,6 +199,7 @@ defmodule Sink.Connection.Client do
             Logger.info("Connected to Sink server @ #{state.host}")
             # todo: send message to handler that we're connected
 
+            Process.send_after(self(), :check_if_connection_request_succeeded, 100)
             {:noreply, State.connected(state, pid)}
 
           {:error, reason} ->
@@ -214,6 +220,15 @@ defmodule Sink.Connection.Client do
   def handle_info({err, _}, state)
       when err in [:tcp_closed, :ssl_closed, :ssl_error, :tcp_error] do
     {:noreply, state}
+  end
+
+  def handle_info(:check_if_connection_request_succeeded, state) do
+    if connected?() do
+      {:noreply, State.connection_request_succeeded(state)}
+    else
+      Process.send_after(self(), :check_if_connection_request_succeeded, 100)
+      {:noreply, state}
+    end
   end
 
   def handle_info({:EXIT, pid, reason}, state) do
