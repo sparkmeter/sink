@@ -52,8 +52,7 @@ defmodule Sink.Connection.Client do
         handler: handler,
         transport: transport,
         connect_attempt_interval: @first_connect_attempt,
-        disconnect_time: nil,
-        connection_request_succeeded: false
+        disconnect_time: nil
       }
     end
 
@@ -62,31 +61,27 @@ defmodule Sink.Connection.Client do
     end
 
     def backoff(%State{connect_attempt_interval: @first_connect_attempt} = state) do
-      %State{state | connect_attempt_interval: add_jitter(1_000)}
+      %State{state | connect_attempt_interval: 1_000}
     end
 
     def backoff(%State{connect_attempt_interval: 1_000} = state) do
-      %State{state | connect_attempt_interval: add_jitter(5_000)}
+      %State{state | connect_attempt_interval: 5_000}
     end
 
     def backoff(%State{connect_attempt_interval: 5_000} = state) do
-      %State{state | connect_attempt_interval: add_jitter(30_000)}
-    end
-
-    def backoff(%State{connect_attempt_interval: 10_000} = state) do
-      %State{state | connect_attempt_interval: add_jitter(60_000)}
+      %State{state | connect_attempt_interval: 30_000}
     end
 
     def backoff(%State{connect_attempt_interval: _} = state) do
-      %State{state | connect_attempt_interval: add_jitter(300_000)}
+      %State{state | connect_attempt_interval: 60_000}
     end
 
     def connected(%State{} = state, connection_pid) do
-      %State{state | connection_pid: connection_pid}
+      %State{state | connection_pid: connection_pid, connect_attempt_interval: 300_000}
     end
 
     def connection_request_succeeded(%State{} = state) do
-      %State{state | connection_request_succeeded: true, connect_attempt_interval: nil}
+      %State{state | connect_attempt_interval: nil}
     end
 
     def disconnected(%State{} = state, reason, now) do
@@ -95,11 +90,6 @@ defmodule Sink.Connection.Client do
         disconnect_reason: reason,
         disconnect_time: now
       )
-    end
-
-    defp add_jitter(interval) do
-      variance = div(interval, 10)
-      interval + Enum.random(-variance..variance)
     end
   end
 
@@ -240,7 +230,7 @@ defmodule Sink.Connection.Client do
     new_state =
       if pid == state.connection_pid do
         Logger.info("Disconnected from Sink server")
-        Process.send_after(self(), :open_connection, 5_000)
+        on_connection_init_failure(state)
         State.disconnected(state, reason, now())
       else
         state
@@ -265,11 +255,16 @@ defmodule Sink.Connection.Client do
 
   defp on_connection_init_failure(state) do
     new_state = State.backoff(state)
-    Process.send_after(self(), :open_connection, new_state.connect_attempt_interval)
+    Process.send_after(self(), :open_connection, add_jitter(new_state.connect_attempt_interval))
     new_state
   end
 
   defp now do
     System.monotonic_time(:millisecond)
+  end
+
+  defp add_jitter(interval) do
+    variance = div(interval, 10)
+    interval + Enum.random(-variance..variance)
   end
 end

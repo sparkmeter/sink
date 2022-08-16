@@ -53,16 +53,12 @@ defmodule Sink.Connection.Protocol do
       <<server_instantiated_at::integer-size(32)>>
   end
 
-  def encode_frame(:connection_response, {:mismatched_client, client_instantiated_at, expected}) do
-    <<@message_type_id_connection_response::integer-size(4), 2::integer-size(4)>> <>
-      <<client_instantiated_at::integer-size(32)>> <>
-      <<expected::integer-size(32)>>
+  def encode_frame(:connection_response, :mismatched_client) do
+    <<@message_type_id_connection_response::integer-size(4), 2::integer-size(4)>>
   end
 
-  def encode_frame(:connection_response, {:mismatched_server, server_instantiated_at, expected}) do
-    <<@message_type_id_connection_response::integer-size(4), 3::integer-size(4)>> <>
-      <<server_instantiated_at::integer-size(32)>> <>
-      <<expected::integer-size(32)>>
+  def encode_frame(:connection_response, :mismatched_server) do
+    <<@message_type_id_connection_response::integer-size(4), 3::integer-size(4)>>
   end
 
   def encode_frame(:connection_response, {:quarantined, {machine_message, human_message}}) do
@@ -190,14 +186,12 @@ defmodule Sink.Connection.Protocol do
     {:connection_response, {:hello_new_client, server_instantiated_at}}
   end
 
-  defp decode_connection_response(2, rest) do
-    <<client_instantiated_at::integer-size(32), expected::integer-size(32)>> = rest
-    {:connection_response, {:mismatched_client, client_instantiated_at, expected}}
+  defp decode_connection_response(2, <<>>) do
+    {:connection_response, :mismatched_client}
   end
 
-  defp decode_connection_response(3, rest) do
-    <<server_instantiated_at::integer-size(32), expected::integer-size(32)>> = rest
-    {:connection_response, {:mismatched_server, server_instantiated_at, expected}}
+  defp decode_connection_response(3, <<>>) do
+    {:connection_response, :mismatched_server}
   end
 
   defp decode_connection_response(4, rest) do

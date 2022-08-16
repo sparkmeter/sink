@@ -138,31 +138,21 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "mismatched client" do
-      encoded = <<18>> <> <<96, 115, 2, 112>> <> <<96, 115, 2, 113>>
+      encoded = <<18>>
 
       assert encoded ==
-               Protocol.encode_frame(
-                 :connection_response,
-                 {:mismatched_client, @client_instantiated_at, @client_instantiated_at + 1}
-               )
+               Protocol.encode_frame(:connection_response, :mismatched_client)
 
-      assert {:connection_response,
-              {:mismatched_client, @client_instantiated_at, @client_instantiated_at + 1}} ==
-               Protocol.decode_frame(encoded)
+      assert {:connection_response, :mismatched_client} == Protocol.decode_frame(encoded)
     end
 
     test "mismatched server" do
-      encoded = <<19>> <> <<96, 114, 63, 32>> <> <<96, 114, 63, 33>>
+      encoded = <<19>>
 
       assert encoded ==
-               Protocol.encode_frame(
-                 :connection_response,
-                 {:mismatched_server, @server_instantiated_at, @server_instantiated_at + 1}
-               )
+               Protocol.encode_frame(:connection_response, :mismatched_server)
 
-      assert {:connection_response,
-              {:mismatched_server, @server_instantiated_at, @server_instantiated_at + 1}} ==
-               Protocol.decode_frame(encoded)
+      assert {:connection_response, :mismatched_server} == Protocol.decode_frame(encoded)
     end
 
     test "quarantined client" do

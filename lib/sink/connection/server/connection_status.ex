@@ -108,10 +108,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
          }}
 
       :mismatched_client ->
-        {c_c_instantiated_at, _} = c_instantiated_ats
-        {s_c_instantiated_at, _} = state.server_instantiated_ats
-
-        {{:mismatched_client, c_c_instantiated_at, s_c_instantiated_at},
+        {:mismatched_client,
          %__MODULE__{
            state
            | connection_state: :disconnecting,
@@ -120,10 +117,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
          }}
 
       :mismatched_server ->
-        {_, c_s_instantiated_at} = c_instantiated_ats
-        {_, s_s_instantiated_at} = state.server_instantiated_ats
-
-        {{:mismatched_server, c_s_instantiated_at, s_s_instantiated_at},
+        {:mismatched_server,
          %__MODULE__{
            state
            | connection_state: :disconnecting,

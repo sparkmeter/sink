@@ -135,12 +135,11 @@ defmodule Sink.ConnectionTest do
       expect(@client_handler, :version, fn -> @version end)
       expect(@server_handler, :supported_version?, fn "abc123", @version -> true end)
 
-      expect(@client_handler, :handle_connection_response, fn {:mismatched_client, 1, 5} ->
+      expect(@client_handler, :handle_connection_response, fn :mismatched_client ->
         :ok
       end)
 
-      expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
-                                                              {:mismatched_client, 1, 5} ->
+      expect(@server_handler, :handle_connection_response, fn {"abc123", 1}, :mismatched_client ->
         :ok
       end)
 
@@ -177,12 +176,11 @@ defmodule Sink.ConnectionTest do
       expect(@client_handler, :version, fn -> @version end)
       expect(@server_handler, :supported_version?, fn "abc123", @version -> true end)
 
-      expect(@client_handler, :handle_connection_response, fn {:mismatched_server, 5, 2} ->
+      expect(@client_handler, :handle_connection_response, fn :mismatched_server ->
         :ok
       end)
 
-      expect(@server_handler, :handle_connection_response, fn {"abc123", 1},
-                                                              {:mismatched_server, 5, 2} ->
+      expect(@server_handler, :handle_connection_response, fn {"abc123", 1}, :mismatched_server ->
         :ok
       end)
 
