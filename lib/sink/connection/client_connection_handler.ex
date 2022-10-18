@@ -12,7 +12,6 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @type schema_version() :: non_neg_integer()
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
-  @type nack_data() :: {binary(), String.t()}
 
   @doc """
   Tell the connection the server_identifier of previous connections if present
@@ -37,7 +36,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @doc """
   Run implementer's logic for handling a "nack"
   """
-  @callback handle_nack(ack_key(), nack_data()) :: :ok
+  @callback handle_nack(ack_key(), Protocol.nack_data()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "publish" message

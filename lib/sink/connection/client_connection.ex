@@ -276,6 +276,11 @@ defmodule Sink.Connection.ClientConnection do
       |> Protocol.decode_frame()
       |> case do
         {:connection_response, result} ->
+          result =
+            with {:quarantined, payload} <- result do
+              {:quarantined, Protocol.decode_payload(:nack, payload)}
+            end
+
           :ok = handler.handle_connection_response(result)
           new_state = State.connection_response(state, result)
 

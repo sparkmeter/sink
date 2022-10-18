@@ -51,12 +51,8 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "encodes connection response when client is quarantined" do
-      assert <<1::4, 3::4, rest::binary>> =
-               Protocol.encode_frame(
-                 {:connection_response, {:quarantined, {<<1::32>>, "Bad client"}}}
-               )
-
-      assert {<<1::32>>, "Bad client"} = Protocol.Helpers.decode_chunk(rest)
+      assert <<1::4, 3::4, "abc"::binary>> =
+               Protocol.encode_frame({:connection_response, {:quarantined, "abc"}})
     end
 
     test "encodes connection response when protocol version is unsupported" do
@@ -132,11 +128,8 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "decodes connection response when client is quarantined" do
-      encoded =
-        Protocol.encode_frame({:connection_response, {:quarantined, {<<1::32>>, "Bad client"}}})
-
-      assert {:connection_response, {:quarantined, {<<1::32>>, "Bad client"}}} =
-               Protocol.decode_frame(encoded)
+      encoded = Protocol.encode_frame({:connection_response, {:quarantined, "abc"}})
+      assert {:connection_response, {:quarantined, "abc"}} = Protocol.decode_frame(encoded)
     end
 
     test "decodes connection response when protocol version is unsupported" do

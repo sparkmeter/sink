@@ -28,7 +28,7 @@ defmodule Sink.Generators do
                 constant(:connected),
                 tuple({constant(:hello_new_client), server_identifier()}),
                 constant(:server_identifier_mismatch),
-                tuple({constant(:quarantined), nack_info()}),
+                tuple({constant(:quarantined), binary()}),
                 tuple({constant(:unsupported_protocol_version), protocol_version()}),
                 constant(:unsupported_application_version)
               ]) do
@@ -70,7 +70,7 @@ defmodule Sink.Generators do
     integer(0..4_294_967_295)
   end
 
-  def nack_info do
+  def nack_data do
     gen all machine <- binary(),
             human <- string(:printable) do
       {machine, human}

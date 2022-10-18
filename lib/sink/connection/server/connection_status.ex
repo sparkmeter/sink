@@ -19,7 +19,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     :reason
   ]
 
-  @spec init({:ok, Protocol.server_identifier()} | {:quarantine, String.t()}) :: t
+  @spec init({:ok, Protocol.server_identifier()} | {:quarantine, Protocol.nack_data()}) :: t
   def init(server_identifier_or_quarantine) do
     case server_identifier_or_quarantine do
       {:ok, server_identifier} ->

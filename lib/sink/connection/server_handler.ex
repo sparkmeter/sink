@@ -393,7 +393,12 @@ defmodule Sink.Connection.ServerHandler do
                ConnectionStatus.unsupported_application_version(state.connection_status)}
             end
 
-          frame = Connection.Protocol.encode_frame({:connection_response, response})
+          encodeable_response =
+            with {:quarantined, reason} <- response do
+              {:quarantined, Protocol.encode_payload(:nack, reason)}
+            end
+
+          frame = Connection.Protocol.encode_frame({:connection_response, encodeable_response})
           new_state = %State{state | connection_status: new_connection_status}
 
           case response do

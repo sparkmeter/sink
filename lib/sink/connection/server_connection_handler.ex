@@ -14,7 +14,6 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type schema_version() :: non_neg_integer()
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
-  @type nack_data() :: {binary(), String.t()}
   @type peer_cert() :: binary()
 
   @doc """
@@ -48,7 +47,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @doc """
   Run implementer's logic for handling a "nack"
   """
-  @callback handle_nack(client(), ack_key(), nack_data()) :: :ok
+  @callback handle_nack(client(), ack_key(), Protocol.nack_data()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "publish" message.
@@ -56,7 +55,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   Should respond with either an ack or a nack with information about the nack
   """
   @callback handle_publish(client(), Sink.Event.t(), message_id()) ::
-              :ack | {:nack, nack_data()}
+              :ack | {:nack, Protocol.nack_data()}
 
   @doc """
   The connection has been closed

@@ -8,20 +8,25 @@ defmodule Sink.Connection.Protocol do
   @typedoc "Client application version in string format"
   @type application_version :: String.t()
 
+  @typedoc "ID for a published message."
+  @type message_id :: pos_integer()
+
   @type message ::
           {:connection_request, {application_version, server_identifier | nil}}
           | {:connection_response,
              :connected
              | {:hello_new_client, server_identifier}
              | :server_identifier_mismatch
-             | {:quarantined, {term, term}}
+             | {:quarantined, payload :: binary}
              | {:unsupported_protocol_version, term}
              | :unsupported_application_version}
-          | {:ack, term}
-          | {:publish, term, term}
+          | {:ack, message_id}
+          | {:publish, message_id, payload :: binary}
           | :ping
           | :pong
-          | {:nack, term, term}
+          | {:nack, message_id, payload :: binary}
+
+  @type nack_data() :: {binary(), String.t()}
 
   # when we get to Sink 1.0 this will be 0 and we'll delete / deprecate anything
   # 8 and higher
@@ -74,7 +79,7 @@ defmodule Sink.Connection.Protocol do
   end
 
   def encode_frame({:connection_response, {:quarantined, payload}}) do
-    do_encode_frame(@message_type_id_connection_response, 3, encode_payload(:nack, payload))
+    do_encode_frame(@message_type_id_connection_response, 3, payload)
   end
 
   def encode_frame({:connection_response, {:unsupported_protocol_version, protocol_version}}) do
@@ -126,6 +131,8 @@ defmodule Sink.Connection.Protocol do
   @doc """
   Encode payloads of messages
   """
+  @spec encode_payload(:publish, Event.t()) :: binary()
+  @spec encode_payload(:nack, nack_data()) :: binary()
   def encode_payload(:publish, %Event{} = event) do
     Varint.LEB128.encode(event.event_type_id) <>
       Varint.LEB128.encode(event.schema_version) <>
@@ -181,7 +188,7 @@ defmodule Sink.Connection.Protocol do
   end
 
   def decode_frame(<<@message_type_id_connection_response::4, 3::4, payload::binary>>) do
-    {:connection_response, {:quarantined, decode_payload(:nack, payload)}}
+    {:connection_response, {:quarantined, payload}}
   end
 
   def decode_frame(<<@message_type_id_connection_response::4, 4::4, protocol_version::8>>) do
@@ -217,6 +224,8 @@ defmodule Sink.Connection.Protocol do
   @doc """
   Decode payloads of messages
   """
+  @spec decode_payload(:publish, binary()) :: Event.t()
+  @spec decode_payload(:nack, binary()) :: nack_data()
   def decode_payload(:nack, <<payload::binary>>) do
     {machine_message, human_message} = Helpers.decode_chunk(payload)
 
