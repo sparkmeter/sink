@@ -2,21 +2,26 @@ defmodule Sink.Connection.Client.ConnectionStatus do
   @moduledoc """
   State machine that manages a connection's state and state transitions
   """
+  alias Sink.Connection.Protocol
+
+  @type t :: %__MODULE__{
+          connection_state: :requesting_connection | :connected | :disconnecting,
+          server_identifier: Protocol.server_identifierentifier() | nil,
+          reason: nil | binary
+        }
 
   defstruct [
     :connection_state,
-    :client_instantiated_at,
-    :server_instantiated_at,
+    :server_identifier,
     :reason
   ]
 
-  def init(instantiated_ats) do
-    {client_instantiated_at, server_instantiated_at} = instantiated_ats
-
+  @spec init(Protocol.server_identifier() | nil) :: t
+  def init(server_identifier) when is_nil(server_identifier) or is_integer(server_identifier) do
     %__MODULE__{
       connection_state: :requesting_connection,
-      client_instantiated_at: client_instantiated_at,
-      server_instantiated_at: server_instantiated_at
+      server_identifier: server_identifier,
+      reason: nil
     }
   end
 
@@ -28,8 +33,13 @@ defmodule Sink.Connection.Client.ConnectionStatus do
   def connected?(%__MODULE__{connection_state: :connected}), do: true
   def connected?(%__MODULE__{connection_state: _}), do: false
 
-  def instantiated_ats(%__MODULE__{} = state) do
-    {state.client_instantiated_at, state.server_instantiated_at}
+  def server_identifier(%__MODULE__{server_identifier: hash}), do: hash
+
+  def connection_response(
+        %__MODULE__{connection_state: :requesting_connection} = state,
+        {:hello_new_client, server_identifier}
+      ) do
+    %__MODULE__{state | connection_state: :connected, server_identifier: server_identifier}
   end
 
   def connection_response(
@@ -41,25 +51,7 @@ defmodule Sink.Connection.Client.ConnectionStatus do
 
   def connection_response(
         %__MODULE__{connection_state: :requesting_connection} = state,
-        {:hello_new_client, server_instantiated_at}
-      ) do
-    %__MODULE__{
-      state
-      | connection_state: :connected,
-        server_instantiated_at: server_instantiated_at
-    }
-  end
-
-  def connection_response(
-        %__MODULE__{connection_state: :requesting_connection} = state,
-        :mismatched_client
-      ) do
-    %__MODULE__{state | connection_state: :disconnecting}
-  end
-
-  def connection_response(
-        %__MODULE__{connection_state: :requesting_connection} = state,
-        :mismatched_server
+        :server_identifier_mismatch
       ) do
     %__MODULE__{state | connection_state: :disconnecting}
   end

@@ -20,12 +20,12 @@ defmodule Sink.Connection.ClientConnection do
       :inflight
     ]
 
-    def init(socket, handler, transport, instantiated_ats, now) do
+    def init(socket, handler, transport, last_server_identifier, now) do
       %State{
         socket: socket,
         handler: handler,
         transport: transport,
-        connection_status: ConnectionStatus.init(instantiated_ats),
+        connection_status: ConnectionStatus.init(last_server_identifier),
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
@@ -42,8 +42,8 @@ defmodule Sink.Connection.ClientConnection do
       }
     end
 
-    def instantiated_ats(state) do
-      ConnectionStatus.instantiated_ats(state.connection_status)
+    def server_identifier(state) do
+      ConnectionStatus.server_identifier(state.connection_status)
     end
 
     def get_inflight(%State{} = state) do
@@ -160,8 +160,8 @@ defmodule Sink.Connection.ClientConnection do
     socket = Keyword.fetch!(init_arg, :socket)
     handler = Keyword.fetch!(init_arg, :handler)
     transport = Keyword.fetch!(init_arg, :transport)
-    instantiated_ats = handler.instantiated_ats()
-    state = State.init(socket, handler, transport, instantiated_ats, now())
+    last_server_identifier = handler.last_server_identifier()
+    state = State.init(socket, handler, transport, last_server_identifier, now())
     schedule_maybe_ping(state.stats.keepalive_interval)
     schedule_check_keepalive(state.stats.keepalive_interval)
 
@@ -170,8 +170,8 @@ defmodule Sink.Connection.ClientConnection do
 
   def handle_continue(:send_connection_request, state) do
     version = state.handler.version()
-    instantiated_ats = State.instantiated_ats(state)
-    frame = Protocol.encode_frame(:connection_request, {version, instantiated_ats})
+    server_identifier = State.server_identifier(state)
+    frame = Protocol.encode_frame({:connection_request, {version, server_identifier}})
 
     case state.transport.send(state.socket, frame) do
       :ok -> {:noreply, state}
@@ -188,7 +188,7 @@ defmodule Sink.Connection.ClientConnection do
   end
 
   def handle_call({:ack, message_id}, _from, state) do
-    frame = Protocol.encode_frame(:ack, message_id)
+    frame = Protocol.encode_frame({:ack, message_id})
 
     case state.transport.send(state.socket, frame) do
       :ok -> {:reply, :ok, state}
@@ -200,7 +200,7 @@ defmodule Sink.Connection.ClientConnection do
     with {:no_connection, false} <- {:no_connection, !State.connected?(state)},
          {:inflight, false} <- {:inflight, State.inflight?(state, ack_key)} do
       payload = Protocol.encode_payload(:publish, event)
-      encoded = Protocol.encode_frame(:publish, state.inflight.next_message_id, payload)
+      encoded = Protocol.encode_frame({:publish, state.inflight.next_message_id, payload})
 
       case state.transport.send(state.socket, encoded) do
         :ok ->
@@ -322,14 +322,14 @@ defmodule Sink.Connection.ClientConnection do
           end
           |> case do
             :ack ->
-              frame = Protocol.encode_frame(:ack, message_id)
+              frame = Protocol.encode_frame({:ack, message_id})
               {state, {:ack, frame}}
 
             {:nack, {machine_message, human_message}} ->
               nack_data = {machine_message, human_message}
               ack_key = {event.event_type_id, event.key, event.offset}
               nack_payload = Protocol.encode_payload(:nack, nack_data)
-              frame = Protocol.encode_frame(:nack, message_id, nack_payload)
+              frame = Protocol.encode_frame({:nack, message_id, nack_payload})
 
               after_send = fn state ->
                 State.put_sent_nack(state, message_id, ack_key, nack_data)

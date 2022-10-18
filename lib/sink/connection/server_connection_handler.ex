@@ -3,6 +3,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   Defines the interface for connection events.
   """
   alias Sink.Connection
+  alias Sink.Connection.Protocol
 
   @type ack_key() :: {event_type_id(), key(), offset()}
   @type client_id() :: String.t()
@@ -17,26 +18,17 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type peer_cert() :: binary()
 
   @doc """
-  When the client and server were instantiated. Used to ensure the client and server
-  haven't been wiped or reset between the last connection. See the connection
-  request/response documentation for more.
-
-  todo: consider coming up with a different name for this
+  Return either `{:ok, Protocol.server_identifier() | nil}` to fully establish the connection
+  or `{:quarantined, reason}` to disconnect.
   """
 
-  @callback instantiated_ats(client_id()) ::
-              {:ok, non_neg_integer() | nil, non_neg_integer()}
-              | {:quarantined, {binary(), binary()}}
+  @callback client_configuration(client_id()) ::
+              {:ok, Protocol.server_identifier()} | {:quarantined, {binary(), binary()}}
 
   @doc """
   Check that the client's firmware version is compatible with the server.
   """
-  @callback supported_version?(client_id(), String.t()) :: boolean()
-
-  @doc """
-  The connection has been closed
-  """
-  @callback down(client()) :: :ok
+  @callback supported_version?(client_id(), Protocol.version()) :: boolean()
 
   @doc """
   Run implementer's authentication logic
@@ -65,4 +57,9 @@ defmodule Sink.Connection.ServerConnectionHandler do
   """
   @callback handle_publish(client(), Sink.Event.t(), message_id()) ::
               :ack | {:nack, nack_data()}
+
+  @doc """
+  The connection has been closed
+  """
+  @callback down(client()) :: :ok
 end

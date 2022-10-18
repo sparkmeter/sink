@@ -2,6 +2,27 @@ defmodule Sink.Connection.Protocol do
   alias Sink.Connection.Protocol.Helpers
   alias Sink.Event
 
+  @typedoc "32-bit integer to uniquely identify a given server instance"
+  @type server_identifier :: integer
+
+  @typedoc "Client application version in string format"
+  @type application_version :: String.t()
+
+  @type message ::
+          {:connection_request, {application_version, server_identifier | nil}}
+          | {:connection_response,
+             :connected
+             | {:hello_new_client, server_identifier}
+             | :server_identifier_mismatch
+             | {:quarantined, {term, term}}
+             | {:unsupported_protocol_version, term}
+             | :unsupported_application_version}
+          | {:ack, term}
+          | {:publish, term, term}
+          | :ping
+          | :pong
+          | {:nack, term, term}
+
   # when we get to Sink 1.0 this will be 0 and we'll delete / deprecate anything
   # 8 and higher
   @protocol_version 8
@@ -9,112 +30,102 @@ defmodule Sink.Connection.Protocol do
   @message_type_id_connection_request 0
   @message_type_id_connection_response 1
 
+  @doc """
+  Encode various types of messages into their encompasing frame.
+  """
+  @spec encode_frame(message) :: binary
+
+  # Connection Request (0)
+
+  def encode_frame({:connection_request, @protocol_version, {version, server_identifier}}) do
+    encode_frame({:connection_request, {version, server_identifier}})
+  end
+
+  def encode_frame({:connection_request, protocol_version, _}) do
+    raise "Received invalid protocol version: #{protocol_version}"
+  end
+
+  def encode_frame({:connection_request, {version, server_identifier}}) do
+    version_chunk = Helpers.encode_chunk(version)
+
+    id_chunk =
+      case server_identifier do
+        id when is_integer(id) -> <<id::32>>
+        nil -> <<>>
+      end
+
+    payload = version_chunk <> id_chunk
+    do_encode_frame(@message_type_id_connection_request, @protocol_version, payload)
+  end
+
+  # Connection Response (1)
+
+  def encode_frame({:connection_response, :connected}) do
+    do_encode_frame(@message_type_id_connection_response, 0)
+  end
+
+  def encode_frame({:connection_response, {:hello_new_client, server_identifier}}) do
+    payload = <<server_identifier::32>>
+    do_encode_frame(@message_type_id_connection_response, 1, payload)
+  end
+
+  def encode_frame({:connection_response, :server_identifier_mismatch}) do
+    do_encode_frame(@message_type_id_connection_response, 2)
+  end
+
+  def encode_frame({:connection_response, {:quarantined, payload}}) do
+    do_encode_frame(@message_type_id_connection_response, 3, encode_payload(:nack, payload))
+  end
+
+  def encode_frame({:connection_response, {:unsupported_protocol_version, protocol_version}}) do
+    payload = <<protocol_version::8>>
+    do_encode_frame(@message_type_id_connection_response, 4, payload)
+  end
+
+  def encode_frame({:connection_response, :unsupported_application_version}) do
+    do_encode_frame(@message_type_id_connection_response, 5)
+  end
+
+  # Other
+
+  def encode_frame({:ack, message_id}) do
+    do_encode_frame(3, message_id)
+  end
+
+  def encode_frame({:publish, message_id, payload}) do
+    do_encode_frame(4, message_id, payload)
+  end
+
   def encode_frame(:ping) do
-    message_type_id = 5
-    message_id = 0
-    <<message_type_id::4, message_id::integer-size(12)>>
+    do_encode_frame(5, 0)
   end
 
   def encode_frame(:pong) do
-    message_type_id = 6
-    message_id = 0
-    <<message_type_id::4, message_id::integer-size(12)>>
+    do_encode_frame(6, 0)
   end
 
-  def encode_frame(:ack, message_id) do
-    message_type_id = 3
-    <<message_type_id::4, message_id::integer-size(12)>>
+  def encode_frame({:nack, message_id, payload}) do
+    do_encode_frame(7, message_id, payload)
   end
 
-  def encode_frame(
-        :connection_request,
-        {version, {client_instantiated_at, server_instantiated_at}}
-      ) do
-    header = <<@message_type_id_connection_request::4, @protocol_version::4>>
-    version_chunk = Helpers.encode_chunk(version)
-    client_chunk = <<client_instantiated_at::integer-size(32)>>
+  defp do_encode_frame(message_type_id, message_id, payload \\ <<>>)
 
-    server_chunk =
-      if !is_nil(server_instantiated_at) do
-        <<server_instantiated_at::integer-size(32)>>
-      else
-        <<>>
-      end
-
-    header <> version_chunk <> client_chunk <> server_chunk
+  defp do_encode_frame(message_type_id, message_type, payload)
+       when message_type_id in [
+              @message_type_id_connection_request,
+              @message_type_id_connection_response
+            ] and is_integer(message_type) and is_binary(payload) do
+    <<message_type_id::4, message_type::4, payload::binary>>
   end
 
-  def encode_frame(:connection_response, :connected) do
-    <<@message_type_id_connection_response::integer-size(4), 0::integer-size(4)>>
+  defp do_encode_frame(message_type_id, message_id, payload)
+       when is_integer(message_type_id) and is_integer(message_id) and is_binary(payload) do
+    <<message_type_id::4, message_id::12, payload::binary>>
   end
 
-  def encode_frame(:connection_response, {:hello_new_client, server_instantiated_at}) do
-    <<@message_type_id_connection_response::integer-size(4), 1::integer-size(4)>> <>
-      <<server_instantiated_at::integer-size(32)>>
-  end
-
-  def encode_frame(:connection_response, :mismatched_client) do
-    <<@message_type_id_connection_response::integer-size(4), 2::integer-size(4)>>
-  end
-
-  def encode_frame(:connection_response, :mismatched_server) do
-    <<@message_type_id_connection_response::integer-size(4), 3::integer-size(4)>>
-  end
-
-  def encode_frame(:connection_response, {:quarantined, {machine_message, human_message}}) do
-    header = <<@message_type_id_connection_response::integer-size(4), 4::integer-size(4)>>
-
-    machine_chunk =
-      Helpers.maybe_encode_varint(byte_size(machine_message), true) <> machine_message
-
-    human_chunk = Helpers.maybe_encode_varint(byte_size(human_message), true) <> human_message
-    header <> machine_chunk <> human_chunk
-  end
-
-  def encode_frame(:connection_response, {:unsupported_protocol_version, protocol_version}) do
-    <<@message_type_id_connection_response::integer-size(4), 5::integer-size(4)>> <>
-      <<protocol_version::integer-size(8)>>
-  end
-
-  def encode_frame(:connection_response, :unsupported_application_version) do
-    <<@message_type_id_connection_response::integer-size(4), 6::integer-size(4)>>
-  end
-
-  def encode_frame(message_type, message_id, payload) do
-    message_type_id =
-      case message_type do
-        :publish -> 4
-        :nack -> 7
-      end
-
-    header = <<message_type_id::4, message_id::integer-size(12)>>
-
-    header <> payload
-  end
-
-  def decode_frame(message) do
-    <<message_type_id::integer-size(4), header_rest::integer-size(4), rest::binary>> = message
-
-    case message_type_id do
-      @message_type_id_connection_request ->
-        decode_connection_request(header_rest, rest)
-
-      @message_type_id_connection_response ->
-        decode_connection_response(header_rest, rest)
-
-      _ ->
-        <<message_type_id::4, message_id::integer-size(12), payload::binary>> = message
-
-        case message_type_id do
-          3 -> {:ack, message_id}
-          4 -> {:publish, message_id, payload}
-          5 -> :ping
-          6 -> :pong
-          7 -> {:nack, message_id, payload}
-        end
-    end
-  end
-
+  @doc """
+  Encode payloads of messages
+  """
   def encode_payload(:publish, %Event{} = event) do
     Varint.LEB128.encode(event.event_type_id) <>
       Varint.LEB128.encode(event.schema_version) <>
@@ -132,10 +143,80 @@ defmodule Sink.Connection.Protocol do
       human_message
   end
 
-  def decode_payload(:ack, <<message_type_id::4, message_id::integer-size(12)>>) do
-    {message_type_id, message_id}
+  @doc """
+  Decodes various types of messages from their encompasing frame.
+  """
+  @spec encode_frame(binary) :: message
+
+  # Connection Request (0)
+
+  def decode_frame(<<@message_type_id_connection_request::4, protocol_version::4, rest::binary>>) do
+    if protocol_version not in @supported_protocol_versions do
+      {:error, :unsupported_protocol_version, protocol_version}
+    else
+      {version, id_chunk} = Helpers.decode_chunk(rest)
+
+      server_identifier =
+        case id_chunk do
+          <<>> -> nil
+          <<server_identifier::32>> -> server_identifier
+        end
+
+      {:connection_request, protocol_version, {version, server_identifier}}
+    end
   end
 
+  # Connection Response (1)
+
+  def decode_frame(<<@message_type_id_connection_response::4, 0::4>>) do
+    {:connection_response, :connected}
+  end
+
+  def decode_frame(<<@message_type_id_connection_response::4, 1::4, server_identifier::32>>) do
+    {:connection_response, {:hello_new_client, server_identifier}}
+  end
+
+  def decode_frame(<<@message_type_id_connection_response::4, 2::4>>) do
+    {:connection_response, :server_identifier_mismatch}
+  end
+
+  def decode_frame(<<@message_type_id_connection_response::4, 3::4, payload::binary>>) do
+    {:connection_response, {:quarantined, decode_payload(:nack, payload)}}
+  end
+
+  def decode_frame(<<@message_type_id_connection_response::4, 4::4, protocol_version::8>>) do
+    {:connection_response, {:unsupported_protocol_version, protocol_version}}
+  end
+
+  def decode_frame(<<@message_type_id_connection_response::4, 5::4>>) do
+    {:connection_response, :unsupported_application_version}
+  end
+
+  # Other
+
+  def decode_frame(<<3::4, message_id::12>>) do
+    {:ack, message_id}
+  end
+
+  def decode_frame(<<4::4, message_id::12, payload::binary>>) do
+    {:publish, message_id, payload}
+  end
+
+  def decode_frame(<<5::4, _::12>>) do
+    :ping
+  end
+
+  def decode_frame(<<6::4, _::12>>) do
+    :pong
+  end
+
+  def decode_frame(<<7::4, message_id::12, payload::binary>>) do
+    {:nack, message_id, payload}
+  end
+
+  @doc """
+  Decode payloads of messages
+  """
   def decode_payload(:nack, <<payload::binary>>) do
     {machine_message, human_message} = Helpers.decode_chunk(payload)
 
@@ -158,53 +239,5 @@ defmodule Sink.Connection.Protocol do
       timestamp: timestamp,
       event_data: event_data
     }
-  end
-
-  defp decode_connection_request(protocol_version, _rest)
-       when protocol_version not in @supported_protocol_versions do
-    {:error, :unsupported_protocol_version, protocol_version}
-  end
-
-  defp decode_connection_request(protocol_version, rest) do
-    {version, instantiated_ats} = Helpers.decode_chunk(rest)
-    <<client_instantiated_at::integer-size(32), maybe_server::binary>> = instantiated_ats
-
-    if maybe_server != <<>> do
-      <<server_instantiated_at::integer-size(32)>> = maybe_server
-
-      {:connection_request, protocol_version,
-       {version, {client_instantiated_at, server_instantiated_at}}}
-    else
-      {:connection_request, protocol_version, {version, {client_instantiated_at, nil}}}
-    end
-  end
-
-  defp decode_connection_response(0, <<>>), do: {:connection_response, :connected}
-
-  defp decode_connection_response(1, rest) do
-    <<server_instantiated_at::integer-size(32)>> = rest
-    {:connection_response, {:hello_new_client, server_instantiated_at}}
-  end
-
-  defp decode_connection_response(2, <<>>) do
-    {:connection_response, :mismatched_client}
-  end
-
-  defp decode_connection_response(3, <<>>) do
-    {:connection_response, :mismatched_server}
-  end
-
-  defp decode_connection_response(4, rest) do
-    {machine_chunk, rest} = Helpers.decode_chunk(rest)
-    {human_chunk, <<>>} = Helpers.decode_chunk(rest)
-    {:connection_response, {:quarantined, {machine_chunk, human_chunk}}}
-  end
-
-  defp decode_connection_response(5, <<protocol_version::integer-size(8)>>) do
-    {:connection_response, {:unsupported_protocol_version, protocol_version}}
-  end
-
-  defp decode_connection_response(6, <<>>) do
-    {:connection_response, :unsupported_application_version}
   end
 end

@@ -3,6 +3,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   Defines the interface for connection events.
   """
   alias Sink.Connection
+  alias Sink.Connection.Protocol
 
   @type ack_key() :: {event_type_id(), key(), offset()}
   @type event_type_id() :: pos_integer()
@@ -14,21 +15,14 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @type nack_data() :: {binary(), String.t()}
 
   @doc """
-  Tell the connection when the client was instantiated_at and when it expects the server
-  was instantiated at. Used to ensure the client and server haven't been wiped or reset
-  between the last connection. See the connection request/response documentation for more.
+  Tell the connection the server_identifier of previous connections if present
   """
-  @callback instantiated_ats() :: {non_neg_integer(), non_neg_integer() | nil}
+  @callback last_server_identifier() :: Protocol.server_identifier() | nil
 
   @doc """
   Tell the connection what application version is running.
   """
-  @callback version() :: String.t()
-
-  @doc """
-  The connection has been closed
-  """
-  @callback down() :: :ok
+  @callback version() :: Protocol.version()
 
   @doc """
   Run implementer's logic for handling a "connection response"
@@ -49,4 +43,9 @@ defmodule Sink.Connection.ClientConnectionHandler do
   Run implementer's logic for handling a "publish" message
   """
   @callback handle_publish(Sink.Event.t(), message_id()) :: :ack
+
+  @doc """
+  The connection has been closed
+  """
+  @callback down() :: :ok
 end

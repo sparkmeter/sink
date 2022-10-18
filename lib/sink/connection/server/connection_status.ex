@@ -2,21 +2,30 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   @moduledoc """
   State machine that manages a connection's state and state transitions
   """
+  alias Sink.Connection.Protocol
+
+  @type t :: %__MODULE__{
+          connection_state:
+            :awaiting_connection_request | :connected | :disconnecting | :quarantined,
+          server_identifier: nil | binary,
+          application_version: term,
+          reason: nil | binary
+        }
 
   defstruct [
     :connection_state,
-    :client_instantiated_ats,
-    :server_instantiated_ats,
+    :server_identifier,
     :application_version,
     :reason
   ]
 
-  def init(instantiated_ats_resp) do
-    case instantiated_ats_resp do
-      {:ok, instantiated_ats} ->
+  @spec init({:ok, Protocol.server_identifier()} | {:quarantine, String.t()}) :: t
+  def init(server_identifier_or_quarantine) do
+    case server_identifier_or_quarantine do
+      {:ok, server_identifier} ->
         %__MODULE__{
           connection_state: :awaiting_connection_request,
-          server_instantiated_ats: instantiated_ats
+          server_identifier: server_identifier
         }
 
       {:quarantined, reason} ->
@@ -78,73 +87,41 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     {{:quarantined, state.reason}, state}
   end
 
-  def connection_request(state, version, c_instantiated_ats) do
+  def connection_request(state, version, client_server_identifier) do
     case check_connection_request(
            state.connection_state,
-           state.server_instantiated_ats,
-           c_instantiated_ats
+           state.server_identifier,
+           client_server_identifier
          ) do
-      :connected ->
-        {:connected,
-         %__MODULE__{
-           state
-           | connection_state: :connected,
-             client_instantiated_ats: c_instantiated_ats,
-             application_version: version
-         }}
+      {:ok, resp} ->
+        {resp, %__MODULE__{state | connection_state: :connected, application_version: version}}
 
-      :hello_new_client ->
-        {c_instantiated_at, _} = c_instantiated_ats
-        {_, s_intantiated_at} = state.server_instantiated_ats
-        new_s_instantiated_ats = {c_instantiated_at, s_intantiated_at}
-
-        {{:hello_new_client, s_intantiated_at},
-         %__MODULE__{
-           state
-           | connection_state: :connected,
-             server_instantiated_ats: new_s_instantiated_ats,
-             client_instantiated_ats: c_instantiated_ats,
-             application_version: version
-         }}
-
-      :mismatched_client ->
-        {:mismatched_client,
-         %__MODULE__{
-           state
-           | connection_state: :disconnecting,
-             client_instantiated_ats: c_instantiated_ats,
-             application_version: version
-         }}
-
-      :mismatched_server ->
-        {:mismatched_server,
-         %__MODULE__{
-           state
-           | connection_state: :disconnecting,
-             client_instantiated_ats: c_instantiated_ats,
-             application_version: version
-         }}
+      {:error, resp} ->
+        {resp,
+         %__MODULE__{state | connection_state: :disconnecting, application_version: version}}
     end
   end
 
   defp check_connection_request(
          :awaiting_connection_request,
-         {s_c_at, s_s_at},
-         {c_c_at, c_s_at}
-       ) do
-    cond do
-      {s_s_at, s_c_at} == {c_s_at, c_c_at} ->
-        :connected
+         server_identifier,
+         server_identifier
+       )
+       when is_integer(server_identifier) do
+    {:ok, :connected}
+  end
 
-      # if the server has never seen the client and the client has never seen the server or know what server to expect
-      is_nil(s_c_at) && (is_nil(c_s_at) || s_s_at == c_s_at) ->
-        :hello_new_client
+  defp check_connection_request(:awaiting_connection_request, server_identifier, nil)
+       when is_integer(server_identifier) do
+    {:ok, {:hello_new_client, server_identifier}}
+  end
 
-      s_c_at != c_c_at ->
-        :mismatched_client
-
-      s_s_at != c_s_at ->
-        :mismatched_server
-    end
+  defp check_connection_request(
+         :awaiting_connection_request,
+         server_identifier,
+         client_server_identifier
+       )
+       when is_integer(server_identifier) and is_integer(client_server_identifier) do
+    {:error, :server_identifier_mismatch}
   end
 end
