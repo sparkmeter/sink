@@ -370,7 +370,6 @@ defmodule Sink.Connection.ServerHandler do
       |> case do
         {:error, :unsupported_protocol_version, protocol_version} ->
           result = {:unsupported_protocol_version, protocol_version}
-          frame = Connection.Protocol.encode_frame({:connection_response, result})
 
           new_connection_status =
             ConnectionStatus.connection_request(state.connection_status, result)
@@ -378,7 +377,7 @@ defmodule Sink.Connection.ServerHandler do
           new_state = %State{state | connection_status: new_connection_status}
           handler.handle_connection_response(new_state.client, result)
           # todo: close connection
-          {new_state, {:connection_response, frame}}
+          {new_state, {:connection_response, {:connection_response, result}}}
 
         {:connection_request, _protocol_version, {version, server_identifier}} ->
           {response, new_connection_status} =
@@ -398,7 +397,6 @@ defmodule Sink.Connection.ServerHandler do
               {:quarantined, Protocol.encode_payload(:nack, reason)}
             end
 
-          frame = Connection.Protocol.encode_frame({:connection_response, encodeable_response})
           new_state = %State{state | connection_status: new_connection_status}
 
           case response do
@@ -409,7 +407,7 @@ defmodule Sink.Connection.ServerHandler do
               handler.handle_connection_response(new_state.client, other)
           end
 
-          {new_state, {:connection_response, frame}}
+          {new_state, {:connection_response, {:connection_response, encodeable_response}}}
 
         {:ack, message_id} ->
           ack_key = State.find_inflight(state, message_id)
@@ -453,8 +451,6 @@ defmodule Sink.Connection.ServerHandler do
           end
           |> case do
             :ack ->
-              frame = Protocol.encode_frame({:ack, message_id})
-
               :ok =
                 Sink.Connection.Freshness.update(client_id, event.event_type_id, event.timestamp)
 
@@ -467,23 +463,20 @@ defmodule Sink.Connection.ServerHandler do
                 state
               end
 
-              {state, {:ack, frame, after_send}}
+              {state, {:ack, {:ack, message_id}, after_send}}
 
             {:nack, nack_data} ->
-              ack_key = {event.event_type_id, event.key, event.offset}
-              payload = Protocol.encode_payload(:nack, nack_data)
-              frame = Protocol.encode_frame({:nack, message_id, payload})
-
               after_send = fn state ->
                 Sink.Telemetry.nack(:sent, %{
                   client_id: State.client_id(state),
                   event_type_id: event.event_type_id
                 })
 
-                State.put_sent_nack(state, message_id, ack_key, nack_data)
+                State.put_sent_nack(state, message_id, Event.ack_key(event), nack_data)
               end
 
-              {state, {:nack, frame, after_send}}
+              payload = Protocol.encode_payload(:nack, nack_data)
+              {state, {:nack, {:nack, message_id, payload}, after_send}}
           end
 
         :ping ->
@@ -494,8 +487,7 @@ defmodule Sink.Connection.ServerHandler do
             state
           end
 
-          frame = Sink.Connection.Protocol.encode_frame(:pong)
-          {state, {:ping, frame, after_send}}
+          {state, {:ping, :pong, after_send}}
 
         :pong ->
           Sink.Telemetry.pong(:received, %{client_id: client_id})
@@ -508,7 +500,9 @@ defmodule Sink.Connection.ServerHandler do
 
     case normalize_response_message_tuple(response_message) do
       {_type, message, callback} ->
-        case state.transport.send(state.socket, message) do
+        frame = Sink.Connection.Protocol.encode_frame(message)
+
+        case state.transport.send(state.socket, frame) do
           :ok ->
             new_state = new_state |> callback.() |> State.log_sent(now())
 

@@ -165,7 +165,6 @@ defmodule Sink.Connection.ServerHandlerTest do
         schema_version: 1
       }
 
-      ack_key = {event.event_type_id, event.key, event.offset}
       message_id = 1234
 
       payload = Protocol.encode_payload(:publish, event)
@@ -190,7 +189,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert {:noreply, new_state} =
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
 
-      assert [{1234, ack_key, nack_data}] == new_state.inflight.sent_nacks
+      assert [{1234, Event.ack_key(event), nack_data}] == new_state.inflight.sent_nacks
     end
 
     test "if the SinkHandler raises an error we send a NACK", %{state: state} do

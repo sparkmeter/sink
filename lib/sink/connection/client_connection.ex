@@ -6,6 +6,7 @@ defmodule Sink.Connection.ClientConnection do
   require Logger
   alias Sink.Connection.Client.ConnectionStatus
   alias Sink.Connection.Protocol
+  alias Sink.Event
 
   defmodule State do
     alias Sink.Connection.{Inflight, Stats}
@@ -327,20 +328,15 @@ defmodule Sink.Connection.ClientConnection do
           end
           |> case do
             :ack ->
-              frame = Protocol.encode_frame({:ack, message_id})
-              {state, {:ack, frame}}
+              {state, {:ack, {:ack, message_id}}}
 
-            {:nack, {machine_message, human_message}} ->
-              nack_data = {machine_message, human_message}
-              ack_key = {event.event_type_id, event.key, event.offset}
-              nack_payload = Protocol.encode_payload(:nack, nack_data)
-              frame = Protocol.encode_frame({:nack, message_id, nack_payload})
-
+            {:nack, nack_data} ->
               after_send = fn state ->
-                State.put_sent_nack(state, message_id, ack_key, nack_data)
+                State.put_sent_nack(state, message_id, Event.ack_key(event), nack_data)
               end
 
-              {state, {:nack, frame, after_send}}
+              nack_payload = Protocol.encode_payload(:nack, nack_data)
+              {state, {:nack, {:nack, message_id, nack_payload}, after_send}}
           end
 
         :ping ->
@@ -351,8 +347,7 @@ defmodule Sink.Connection.ClientConnection do
             state
           end
 
-          frame = Protocol.encode_frame(:pong)
-          {state, {:ping, frame, after_send}}
+          {state, {:ping, :pong, after_send}}
 
         :pong ->
           Sink.Telemetry.pong(:received, %{})
@@ -363,7 +358,9 @@ defmodule Sink.Connection.ClientConnection do
 
     case normalize_response_message_tuple(response_message) do
       {_type, message, callback} ->
-        case state.transport.send(state.socket, message) do
+        frame = Sink.Connection.Protocol.encode_frame(message)
+
+        case state.transport.send(state.socket, frame) do
           :ok ->
             new_state = new_state |> callback.() |> State.log_sent(now())
             {:noreply, new_state}
