@@ -54,7 +54,7 @@ defmodule Sink.ConnectionTest do
   describe "connecting" do
     test "hello new client", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-      stub(@client_handler, :last_server_identifier, fn -> nil end)
+      stub(@client_handler, :last_instance_id, fn -> nil end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
       expect(@client_handler, :application_version, fn -> @version end)
       expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
@@ -90,7 +90,7 @@ defmodule Sink.ConnectionTest do
       client_ssl: client_ssl
     } do
       expect(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-      expect(@client_handler, :last_server_identifier, fn -> 1 end)
+      expect(@client_handler, :last_instance_id, fn -> 1 end)
       expect(@client_handler, :application_version, fn -> @version end)
       expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
       expect(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
@@ -128,17 +128,16 @@ defmodule Sink.ConnectionTest do
 
     test "server id mismatch", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-      stub(@client_handler, :last_server_identifier, fn -> 1 end)
+      stub(@client_handler, :last_instance_id, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 2} end)
       expect(@client_handler, :application_version, fn -> @version end)
       expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
 
-      expect(@client_handler, :handle_connection_response, fn :server_identifier_mismatch ->
+      expect(@client_handler, :handle_connection_response, fn :instance_id_mismatch ->
         :ok
       end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123",
-                                                              :server_identifier_mismatch ->
+      expect(@server_handler, :handle_connection_response, fn "abc123", :instance_id_mismatch ->
         :ok
       end)
 
@@ -171,7 +170,7 @@ defmodule Sink.ConnectionTest do
     test "quarantined client", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       expected_response = {:quarantined, {<<1, 1, 1>>, "blocked"}}
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-      stub(@client_handler, :last_server_identifier, fn -> 1 end)
+      stub(@client_handler, :last_instance_id, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> expected_response end)
       expect(@client_handler, :application_version, fn -> @version end)
       expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
@@ -207,7 +206,7 @@ defmodule Sink.ConnectionTest do
     test "unsupported application version", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       expected_response = :unsupported_application_version
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-      stub(@client_handler, :last_server_identifier, fn -> 1 end)
+      stub(@client_handler, :last_instance_id, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
       expect(@client_handler, :application_version, fn -> @version end)
       expect(@server_handler, :supported_application_version?, fn "abc123", @version -> false end)
@@ -245,7 +244,7 @@ defmodule Sink.ConnectionTest do
     setup %{server_ssl: server_ssl, client_ssl: client_ssl} do
       stub_with(@mod_transport, Sink.Connection.Transport.SSL)
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
-      stub(@client_handler, :last_server_identifier, fn -> 1 end)
+      stub(@client_handler, :last_instance_id, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
       stub(@client_handler, :application_version, fn -> @version end)
       stub(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
@@ -436,7 +435,7 @@ defmodule Sink.ConnectionTest do
       {:error, RuntimeError.exception("Not allowed here!")}
     end)
 
-    stub(@client_handler, :last_server_identifier, fn -> 1 end)
+    stub(@client_handler, :last_instance_id, fn -> 1 end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
 
     logs =

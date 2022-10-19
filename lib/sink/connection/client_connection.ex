@@ -21,12 +21,12 @@ defmodule Sink.Connection.ClientConnection do
       :inflight
     ]
 
-    def init(socket, handler, transport, last_server_identifier, now) do
+    def init(socket, handler, transport, last_instance_id, now) do
       %State{
         socket: socket,
         handler: handler,
         transport: transport,
-        connection_status: ConnectionStatus.init(last_server_identifier),
+        connection_status: ConnectionStatus.init(last_instance_id),
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
@@ -43,8 +43,8 @@ defmodule Sink.Connection.ClientConnection do
       }
     end
 
-    def server_identifier(state) do
-      ConnectionStatus.server_identifier(state.connection_status)
+    def instance_id(state) do
+      ConnectionStatus.instance_id(state.connection_status)
     end
 
     def get_inflight(%State{} = state) do
@@ -161,8 +161,8 @@ defmodule Sink.Connection.ClientConnection do
     socket = Keyword.fetch!(init_arg, :socket)
     handler = Keyword.fetch!(init_arg, :handler)
     transport = Keyword.fetch!(init_arg, :transport)
-    last_server_identifier = handler.last_server_identifier()
-    state = State.init(socket, handler, transport, last_server_identifier, now())
+    last_instance_id = handler.last_instance_id()
+    state = State.init(socket, handler, transport, last_instance_id, now())
     schedule_maybe_ping(state.stats.keepalive_interval)
     schedule_check_keepalive(state.stats.keepalive_interval)
 
@@ -171,8 +171,8 @@ defmodule Sink.Connection.ClientConnection do
 
   def handle_continue(:send_connection_request, state) do
     application_version = state.handler.application_version()
-    server_identifier = State.server_identifier(state)
-    frame = Protocol.encode_frame({:connection_request, {application_version, server_identifier}})
+    instance_id = State.instance_id(state)
+    frame = Protocol.encode_frame({:connection_request, {application_version, instance_id}})
 
     case state.transport.send(state.socket, frame) do
       :ok -> {:noreply, state}

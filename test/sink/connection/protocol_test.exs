@@ -4,14 +4,14 @@ defmodule Sink.Connection.ProtocolTest do
   alias Sink.Connection.Protocol
 
   describe "encode_frame/1 - connection request" do
-    test "encodes connection request with application version and no server_identifier" do
+    test "encodes connection request with application version and no instance_id" do
       assert <<0::4, 8::4, rest::binary>> =
                Protocol.encode_frame({:connection_request, {"v1.0.0", nil}})
 
       assert {"v1.0.0", <<>>} = Protocol.Helpers.decode_chunk(rest)
     end
 
-    test "encodes connection request with application version and server_identifier" do
+    test "encodes connection request with application version and instance_id" do
       assert <<0::4, 8::4, rest::binary>> =
                Protocol.encode_frame({:connection_request, {"v1.0.0", 1}})
 
@@ -46,8 +46,7 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "encodes connection response when server identifiers mismatched" do
-      assert <<1::4, 2::4>> =
-               Protocol.encode_frame({:connection_response, :server_identifier_mismatch})
+      assert <<1::4, 2::4>> = Protocol.encode_frame({:connection_response, :instance_id_mismatch})
     end
 
     test "encodes connection response when client is quarantined" do
@@ -95,12 +94,12 @@ defmodule Sink.Connection.ProtocolTest do
   end
 
   describe "decode_frame/1 - connection request" do
-    test "decodes connection request with application version and no server_identifier" do
+    test "decodes connection request with application version and no instance_id" do
       encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", nil}})
       assert {:connection_request, 8, {"v1.0.0", nil}} = Protocol.decode_frame(encoded)
     end
 
-    test "decodes connection request with application version and server_identifier" do
+    test "decodes connection request with application version and instance_id" do
       encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", 1}})
       assert {:connection_request, 8, {"v1.0.0", 1}} = Protocol.decode_frame(encoded)
     end
@@ -123,8 +122,8 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "decodes connection response when server identifiers mismatched" do
-      encoded = Protocol.encode_frame({:connection_response, :server_identifier_mismatch})
-      assert {:connection_response, :server_identifier_mismatch} = Protocol.decode_frame(encoded)
+      encoded = Protocol.encode_frame({:connection_response, :instance_id_mismatch})
+      assert {:connection_response, :instance_id_mismatch} = Protocol.decode_frame(encoded)
     end
 
     test "decodes connection response when client is quarantined" do

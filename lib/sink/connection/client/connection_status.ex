@@ -6,21 +6,21 @@ defmodule Sink.Connection.Client.ConnectionStatus do
 
   @type t :: %__MODULE__{
           connection_state: :requesting_connection | :connected | :disconnecting,
-          server_identifier: Protocol.server_identifierentifier() | nil,
+          instance_id: Protocol.instance_id() | nil,
           reason: nil | binary
         }
 
   defstruct [
     :connection_state,
-    :server_identifier,
+    :instance_id,
     :reason
   ]
 
-  @spec init(Protocol.server_identifier() | nil) :: t
-  def init(server_identifier) when is_nil(server_identifier) or is_integer(server_identifier) do
+  @spec init(Protocol.instance_id() | nil) :: t
+  def init(instance_id) when is_nil(instance_id) or is_integer(instance_id) do
     %__MODULE__{
       connection_state: :requesting_connection,
-      server_identifier: server_identifier,
+      instance_id: instance_id,
       reason: nil
     }
   end
@@ -33,13 +33,13 @@ defmodule Sink.Connection.Client.ConnectionStatus do
   def connected?(%__MODULE__{connection_state: :connected}), do: true
   def connected?(%__MODULE__{connection_state: _}), do: false
 
-  def server_identifier(%__MODULE__{server_identifier: hash}), do: hash
+  def instance_id(%__MODULE__{instance_id: hash}), do: hash
 
   def connection_response(
         %__MODULE__{connection_state: :requesting_connection} = state,
-        {:hello_new_client, server_identifier}
+        {:hello_new_client, instance_id}
       ) do
-    %__MODULE__{state | connection_state: :connected, server_identifier: server_identifier}
+    %__MODULE__{state | connection_state: :connected, instance_id: instance_id}
   end
 
   def connection_response(
@@ -51,7 +51,7 @@ defmodule Sink.Connection.Client.ConnectionStatus do
 
   def connection_response(
         %__MODULE__{connection_state: :requesting_connection} = state,
-        :server_identifier_mismatch
+        :instance_id_mismatch
       ) do
     %__MODULE__{state | connection_state: :disconnecting}
   end

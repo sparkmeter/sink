@@ -7,25 +7,25 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   @type t :: %__MODULE__{
           connection_state:
             :awaiting_connection_request | :connected | :disconnecting | :quarantined,
-          server_identifier: nil | binary,
+          instance_id: nil | binary,
           application_version: term,
           reason: nil | binary
         }
 
   defstruct [
     :connection_state,
-    :server_identifier,
+    :instance_id,
     :application_version,
     :reason
   ]
 
-  @spec init({:ok, Protocol.server_identifier()} | {:quarantine, Protocol.nack_data()}) :: t
-  def init(server_identifier_or_quarantine) do
-    case server_identifier_or_quarantine do
-      {:ok, server_identifier} ->
+  @spec init({:ok, Protocol.instance_id()} | {:quarantine, Protocol.nack_data()}) :: t
+  def init(instance_id_or_quarantine) do
+    case instance_id_or_quarantine do
+      {:ok, instance_id} ->
         %__MODULE__{
           connection_state: :awaiting_connection_request,
-          server_identifier: server_identifier
+          instance_id: instance_id
         }
 
       {:quarantined, reason} ->
@@ -87,11 +87,11 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     {{:quarantined, state.reason}, state}
   end
 
-  def connection_request(state, version, client_server_identifier) do
+  def connection_request(state, version, client_instance_id) do
     case check_connection_request(
            state.connection_state,
-           state.server_identifier,
-           client_server_identifier
+           state.instance_id,
+           client_instance_id
          ) do
       {:ok, resp} ->
         {resp, %__MODULE__{state | connection_state: :connected, application_version: version}}
@@ -104,24 +104,24 @@ defmodule Sink.Connection.Server.ConnectionStatus do
 
   defp check_connection_request(
          :awaiting_connection_request,
-         server_identifier,
-         server_identifier
+         instance_id,
+         instance_id
        )
-       when is_integer(server_identifier) do
+       when is_integer(instance_id) do
     {:ok, :connected}
   end
 
-  defp check_connection_request(:awaiting_connection_request, server_identifier, nil)
-       when is_integer(server_identifier) do
-    {:ok, {:hello_new_client, server_identifier}}
+  defp check_connection_request(:awaiting_connection_request, instance_id, nil)
+       when is_integer(instance_id) do
+    {:ok, {:hello_new_client, instance_id}}
   end
 
   defp check_connection_request(
          :awaiting_connection_request,
-         server_identifier,
-         client_server_identifier
+         instance_id,
+         client_instance_id
        )
-       when is_integer(server_identifier) and is_integer(client_server_identifier) do
-    {:error, :server_identifier_mismatch}
+       when is_integer(instance_id) and is_integer(client_instance_id) do
+    {:error, :instance_id_mismatch}
   end
 end

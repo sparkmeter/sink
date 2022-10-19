@@ -17,12 +17,12 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type peer_cert() :: binary()
 
   @doc """
-  Return either `{:ok, Protocol.server_identifier() | nil}` to fully establish the connection
+  Return either `{:ok, Protocol.instance_id() | nil}` to fully establish the connection
   or `{:quarantined, reason}` to disconnect.
   """
 
   @callback client_configuration(client_id()) ::
-              {:ok, Protocol.server_identifier()} | {:quarantined, {binary(), binary()}}
+              {:ok, Protocol.instance_id()} | {:quarantined, {binary(), binary()}}
 
   @doc """
   Check that the client's firmware version is compatible with the server.

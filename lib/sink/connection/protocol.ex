@@ -3,7 +3,7 @@ defmodule Sink.Connection.Protocol do
   alias Sink.Event
 
   @typedoc "32-bit integer to uniquely identify a given server instance"
-  @type server_identifier :: integer
+  @type instance_id :: integer
 
   @typedoc "Client application version in string format"
   @type application_version :: String.t()
@@ -12,11 +12,11 @@ defmodule Sink.Connection.Protocol do
   @type message_id :: pos_integer()
 
   @type message ::
-          {:connection_request, {application_version, server_identifier | nil}}
+          {:connection_request, {application_version, instance_id | nil}}
           | {:connection_response,
              :connected
-             | {:hello_new_client, server_identifier}
-             | :server_identifier_mismatch
+             | {:hello_new_client, instance_id}
+             | :instance_id_mismatch
              | {:quarantined, payload :: binary}
              | {:unsupported_protocol_version, term}
              | :unsupported_application_version}
@@ -42,19 +42,19 @@ defmodule Sink.Connection.Protocol do
 
   # Connection Request (0)
 
-  def encode_frame({:connection_request, @protocol_version, {app_version, server_identifier}}) do
-    encode_frame({:connection_request, {app_version, server_identifier}})
+  def encode_frame({:connection_request, @protocol_version, {app_version, instance_id}}) do
+    encode_frame({:connection_request, {app_version, instance_id}})
   end
 
   def encode_frame({:connection_request, protocol_version, _}) do
     raise "Received invalid protocol version: #{protocol_version}"
   end
 
-  def encode_frame({:connection_request, {app_version, server_identifier}}) do
+  def encode_frame({:connection_request, {app_version, instance_id}}) do
     app_version_chunk = Helpers.encode_chunk(app_version)
 
     id_chunk =
-      case server_identifier do
+      case instance_id do
         id when is_integer(id) -> <<id::32>>
         nil -> <<>>
       end
@@ -69,12 +69,12 @@ defmodule Sink.Connection.Protocol do
     do_encode_frame(@message_type_id_connection_response, 0)
   end
 
-  def encode_frame({:connection_response, {:hello_new_client, server_identifier}}) do
-    payload = <<server_identifier::32>>
+  def encode_frame({:connection_response, {:hello_new_client, instance_id}}) do
+    payload = <<instance_id::32>>
     do_encode_frame(@message_type_id_connection_response, 1, payload)
   end
 
-  def encode_frame({:connection_response, :server_identifier_mismatch}) do
+  def encode_frame({:connection_response, :instance_id_mismatch}) do
     do_encode_frame(@message_type_id_connection_response, 2)
   end
 
@@ -163,13 +163,13 @@ defmodule Sink.Connection.Protocol do
     else
       {version, id_chunk} = Helpers.decode_chunk(rest)
 
-      server_identifier =
+      instance_id =
         case id_chunk do
           <<>> -> nil
-          <<server_identifier::32>> -> server_identifier
+          <<instance_id::32>> -> instance_id
         end
 
-      {:connection_request, protocol_version, {version, server_identifier}}
+      {:connection_request, protocol_version, {version, instance_id}}
     end
   end
 
@@ -179,12 +179,12 @@ defmodule Sink.Connection.Protocol do
     {:connection_response, :connected}
   end
 
-  def decode_frame(<<@message_type_id_connection_response::4, 1::4, server_identifier::32>>) do
-    {:connection_response, {:hello_new_client, server_identifier}}
+  def decode_frame(<<@message_type_id_connection_response::4, 1::4, instance_id::32>>) do
+    {:connection_response, {:hello_new_client, instance_id}}
   end
 
   def decode_frame(<<@message_type_id_connection_response::4, 2::4>>) do
-    {:connection_response, :server_identifier_mismatch}
+    {:connection_response, :instance_id_mismatch}
   end
 
   def decode_frame(<<@message_type_id_connection_response::4, 3::4, payload::binary>>) do

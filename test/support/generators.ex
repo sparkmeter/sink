@@ -17,8 +17,8 @@ defmodule Sink.Generators do
 
   def connection_request_message do
     gen all version <- string(:printable),
-            maybe_server_identifier <- one_of([constant(nil), server_identifier()]) do
-      {:connection_request, 8, {version, maybe_server_identifier}}
+            maybe_instance_id <- one_of([constant(nil), instance_id()]) do
+      {:connection_request, 8, {version, maybe_instance_id}}
     end
   end
 
@@ -26,8 +26,8 @@ defmodule Sink.Generators do
     gen all response <-
               one_of([
                 constant(:connected),
-                tuple({constant(:hello_new_client), server_identifier()}),
-                constant(:server_identifier_mismatch),
+                tuple({constant(:hello_new_client), instance_id()}),
+                constant(:instance_id_mismatch),
                 tuple({constant(:quarantined), binary()}),
                 tuple({constant(:unsupported_protocol_version), protocol_version()}),
                 constant(:unsupported_application_version)
@@ -66,7 +66,7 @@ defmodule Sink.Generators do
     integer(0..255)
   end
 
-  def server_identifier do
+  def instance_id do
     integer(0..4_294_967_295)
   end
 
