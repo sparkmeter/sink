@@ -27,7 +27,8 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @doc """
   Check that the client's firmware version is compatible with the server.
   """
-  @callback supported_version?(client_id(), Protocol.version()) :: boolean()
+  @callback supported_application_version?(client_id(), Protocol.application_version()) ::
+              boolean()
 
   @doc """
   Run implementer's authentication logic

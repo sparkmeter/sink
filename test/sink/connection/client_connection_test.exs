@@ -28,7 +28,7 @@ defmodule Sink.Connection.ClientConnectionTest do
     @behaviour Sink.Connection.ClientConnectionHandler
 
     def last_server_identifier, do: 1
-    def version, do: "1.0.0"
+    def application_version, do: "1.0.0"
     def handle_connection_response(_), do: :ok
     def handle_ack(_), do: :ok
     def handle_nack(_, _), do: :ok
@@ -325,7 +325,7 @@ defmodule Sink.Connection.ClientConnectionTest do
   describe "terminate" do
     test "does not call handler.down() if the connection response wasn't received" do
       stub(ClientConnectionHandlerMock, :last_server_identifier, fn -> 1 end)
-      stub(ClientConnectionHandlerMock, :version, fn -> "1.0.0" end)
+      stub(ClientConnectionHandlerMock, :application_version, fn -> "1.0.0" end)
       expect(TransportMock, :send, fn _, _ -> :ok end)
 
       {:ok, connection} =

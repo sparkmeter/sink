@@ -21,7 +21,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @doc """
   Tell the connection what application version is running.
   """
-  @callback version() :: Protocol.version()
+  @callback application_version() :: Protocol.application_version()
 
   @doc """
   Run implementer's logic for handling a "connection response"

@@ -381,7 +381,7 @@ defmodule Sink.Connection.ServerHandler do
 
         {:connection_request, _protocol_version, {version, server_identifier}} ->
           {response, new_connection_status} =
-            if state.handler.supported_version?(client_id, version) do
+            if state.handler.supported_application_version?(client_id, version) do
               ConnectionStatus.connection_request(
                 state.connection_status,
                 version,

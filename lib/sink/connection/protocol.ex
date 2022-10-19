@@ -42,16 +42,16 @@ defmodule Sink.Connection.Protocol do
 
   # Connection Request (0)
 
-  def encode_frame({:connection_request, @protocol_version, {version, server_identifier}}) do
-    encode_frame({:connection_request, {version, server_identifier}})
+  def encode_frame({:connection_request, @protocol_version, {app_version, server_identifier}}) do
+    encode_frame({:connection_request, {app_version, server_identifier}})
   end
 
   def encode_frame({:connection_request, protocol_version, _}) do
     raise "Received invalid protocol version: #{protocol_version}"
   end
 
-  def encode_frame({:connection_request, {version, server_identifier}}) do
-    version_chunk = Helpers.encode_chunk(version)
+  def encode_frame({:connection_request, {app_version, server_identifier}}) do
+    app_version_chunk = Helpers.encode_chunk(app_version)
 
     id_chunk =
       case server_identifier do
@@ -59,7 +59,7 @@ defmodule Sink.Connection.Protocol do
         nil -> <<>>
       end
 
-    payload = version_chunk <> id_chunk
+    payload = app_version_chunk <> id_chunk
     do_encode_frame(@message_type_id_connection_request, @protocol_version, payload)
   end
 

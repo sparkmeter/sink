@@ -56,8 +56,8 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :last_server_identifier, fn -> nil end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
-      expect(@client_handler, :version, fn -> @version end)
-      expect(@server_handler, :supported_version?, fn "abc123", @version -> true end)
+      expect(@client_handler, :application_version, fn -> @version end)
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
       expect(@client_handler, :handle_connection_response, fn {:hello_new_client, 1} -> :ok end)
       expect(@server_handler, :down, fn _ -> :ok end)
       expect(@client_handler, :down, fn -> :ok end)
@@ -91,8 +91,8 @@ defmodule Sink.ConnectionTest do
     } do
       expect(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       expect(@client_handler, :last_server_identifier, fn -> 1 end)
-      expect(@client_handler, :version, fn -> @version end)
-      expect(@server_handler, :supported_version?, fn "abc123", @version -> true end)
+      expect(@client_handler, :application_version, fn -> @version end)
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
       expect(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
       stub(@mod_transport, :send, fn _, _ -> :ok end)
 
@@ -130,8 +130,8 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :last_server_identifier, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 2} end)
-      expect(@client_handler, :version, fn -> @version end)
-      expect(@server_handler, :supported_version?, fn "abc123", @version -> true end)
+      expect(@client_handler, :application_version, fn -> @version end)
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
 
       expect(@client_handler, :handle_connection_response, fn :server_identifier_mismatch ->
         :ok
@@ -173,8 +173,8 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :last_server_identifier, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> expected_response end)
-      expect(@client_handler, :version, fn -> @version end)
-      expect(@server_handler, :supported_version?, fn "abc123", @version -> true end)
+      expect(@client_handler, :application_version, fn -> @version end)
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
       expect(@client_handler, :handle_connection_response, fn ^expected_response -> :ok end)
 
       expect(@server_handler, :handle_connection_response, fn "abc123", ^expected_response ->
@@ -209,8 +209,8 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :last_server_identifier, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
-      expect(@client_handler, :version, fn -> @version end)
-      expect(@server_handler, :supported_version?, fn "abc123", @version -> false end)
+      expect(@client_handler, :application_version, fn -> @version end)
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> false end)
       expect(@client_handler, :handle_connection_response, fn ^expected_response -> :ok end)
 
       expect(@server_handler, :handle_connection_response, fn "abc123", ^expected_response ->
@@ -247,8 +247,8 @@ defmodule Sink.ConnectionTest do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :last_server_identifier, fn -> 1 end)
       stub(@server_handler, :client_configuration, fn "abc123" -> {:ok, 1} end)
-      stub(@client_handler, :version, fn -> @version end)
-      stub(@server_handler, :supported_version?, fn "abc123", @version -> true end)
+      stub(@client_handler, :application_version, fn -> @version end)
+      stub(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
       stub(@mod_transport, :send, fn _, _ -> :ok end)
       stub(@client_handler, :handle_connection_response, fn :connected -> :ok end)
       stub(@server_handler, :handle_connection_response, fn "abc123", :connected -> :ok end)
