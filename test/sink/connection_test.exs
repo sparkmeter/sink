@@ -19,7 +19,7 @@ defmodule Sink.ConnectionTest do
   }
   @ack_key {@event.event_type_id, @event.key, @event.offset}
   @version "1.0.0"
-  @time_to_connect 300
+  @time_to_connect 250
 
   setup :set_mox_global
   setup :verify_on_exit!
@@ -454,7 +454,7 @@ defmodule Sink.ConnectionTest do
         assert Process.alive?(client)
 
         # give it time to connect
-        :timer.sleep(10000)
+        :timer.sleep(@time_to_connect)
 
         assert Process.alive?(client)
       end)
