@@ -21,12 +21,12 @@ defmodule Sink.Connection.ClientConnection do
       :inflight
     ]
 
-    def init(socket, handler, transport, last_instance_id, now) do
+    def init(socket, handler, transport, instance_ids, now) do
       %State{
         socket: socket,
         handler: handler,
         transport: transport,
-        connection_status: ConnectionStatus.init(last_instance_id),
+        connection_status: ConnectionStatus.init(instance_ids),
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
@@ -43,8 +43,8 @@ defmodule Sink.Connection.ClientConnection do
       }
     end
 
-    def instance_id(state) do
-      ConnectionStatus.instance_id(state.connection_status)
+    def instance_ids(state) do
+      ConnectionStatus.instance_ids(state.connection_status)
     end
 
     def get_inflight(%State{} = state) do
@@ -161,8 +161,8 @@ defmodule Sink.Connection.ClientConnection do
     socket = Keyword.fetch!(init_arg, :socket)
     handler = Keyword.fetch!(init_arg, :handler)
     transport = Keyword.fetch!(init_arg, :transport)
-    last_instance_id = handler.last_instance_id()
-    state = State.init(socket, handler, transport, last_instance_id, now())
+    instance_ids = handler.instance_ids()
+    state = State.init(socket, handler, transport, instance_ids, now())
     schedule_maybe_ping(state.stats.keepalive_interval)
     schedule_check_keepalive(state.stats.keepalive_interval)
 
@@ -171,8 +171,11 @@ defmodule Sink.Connection.ClientConnection do
 
   def handle_continue(:send_connection_request, state) do
     application_version = state.handler.application_version()
-    instance_id = State.instance_id(state)
-    frame = Protocol.encode_frame({:connection_request, {application_version, instance_id}})
+    instance_ids = State.instance_ids(state)
+
+    frame =
+      {:connection_request, {application_version, {instance_ids.client, instance_ids.server}}}
+      |> Protocol.encode_frame()
 
     case state.transport.send(state.socket, frame) do
       :ok -> {:noreply, state}

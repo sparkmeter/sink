@@ -27,7 +27,7 @@ defmodule Sink.Connection.ClientConnectionTest do
   defmodule DummyConnectionHandler do
     @behaviour Sink.Connection.ClientConnectionHandler
 
-    def last_instance_id, do: 1
+    def instance_ids, do: %{client: 1, server: 2}
     def application_version, do: "1.0.0"
     def handle_connection_response(_), do: :ok
     def handle_ack(_), do: :ok
@@ -42,7 +42,7 @@ defmodule Sink.Connection.ClientConnectionTest do
 
       # check for connection request
       expect(TransportMock, :send, fn _, frame ->
-        assert {:connection_request, @protocol_version, {"1.0.0", 1}} =
+        assert {:connection_request, @protocol_version, {"1.0.0", {1, 2}}} =
                  Protocol.decode_frame(frame)
 
         :ok
@@ -66,7 +66,7 @@ defmodule Sink.Connection.ClientConnectionTest do
         peername: :fake,
         handler: ClientConnectionHandlerMock,
         transport: TransportMock,
-        connection_status: ConnectionStatus.init(1),
+        connection_status: ConnectionStatus.init(%{client: 1, server: nil}),
         inflight: %Inflight{next_message_id: 100},
         stats: %Stats{
           last_sent_at: 0,
@@ -276,7 +276,7 @@ defmodule Sink.Connection.ClientConnectionTest do
         peername: :fake,
         handler: ClientConnectionHandlerMock,
         transport: TransportMock,
-        connection_status: ConnectionStatus.init(1),
+        connection_status: ConnectionStatus.init(%{client: 1, server: 2}),
         inflight: %Inflight{next_message_id: 100},
         stats: %Stats{
           last_sent_at: 0,
@@ -309,7 +309,7 @@ defmodule Sink.Connection.ClientConnectionTest do
       }
 
       connection_status =
-        1
+        %{client: 1, server: 2}
         |> ConnectionStatus.init()
         |> ConnectionStatus.connection_response(:connected)
 
@@ -324,7 +324,7 @@ defmodule Sink.Connection.ClientConnectionTest do
 
   describe "terminate" do
     test "does not call handler.down() if the connection response wasn't received" do
-      stub(ClientConnectionHandlerMock, :last_instance_id, fn -> 1 end)
+      stub(ClientConnectionHandlerMock, :instance_ids, fn -> %{client: 1, server: 2} end)
       stub(ClientConnectionHandlerMock, :application_version, fn -> "1.0.0" end)
       expect(TransportMock, :send, fn _, _ -> :ok end)
 

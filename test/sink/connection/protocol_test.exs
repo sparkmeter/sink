@@ -4,26 +4,26 @@ defmodule Sink.Connection.ProtocolTest do
   alias Sink.Connection.Protocol
 
   describe "encode_frame/1 - connection request" do
-    test "encodes connection request with application version and no instance_id" do
+    test "encodes connection request with no server_instance_id" do
       assert <<0::4, 0::4, rest::binary>> =
-               Protocol.encode_frame({:connection_request, {"v1.0.0", nil}})
+               Protocol.encode_frame({:connection_request, {"v1.0.0", {1, nil}}})
 
-      assert {"v1.0.0", <<>>} = Protocol.Helpers.decode_chunk(rest)
+      assert {"v1.0.0", <<1::32>> <> <<>>} = Protocol.Helpers.decode_chunk(rest)
     end
 
-    test "encodes connection request with application version and instance_id" do
+    test "encodes connection request with an server_instance_id" do
       assert <<0::4, 0::4, rest::binary>> =
-               Protocol.encode_frame({:connection_request, {"v1.0.0", 1}})
+               Protocol.encode_frame({:connection_request, {"v1.0.0", {1, 2}}})
 
-      assert {"v1.0.0", <<1::32>>} = Protocol.Helpers.decode_chunk(rest)
+      assert {"v1.0.0", <<1::32, 2::32>>} = Protocol.Helpers.decode_chunk(rest)
     end
 
     test "can explicitly pass protocol version" do
       assert <<0::4, 0::4, _rest::binary>> =
-               Protocol.encode_frame({:connection_request, 0, {"v1.0.0", 1}})
+               Protocol.encode_frame({:connection_request, 0, {"v1.0.0", {1, nil}}})
 
       assert <<0::4, 15::4, _rest::binary>> =
-               Protocol.encode_frame({:connection_request, 15, {"v1.0.0", 1}})
+               Protocol.encode_frame({:connection_request, 15, {"v1.0.0", {1, nil}}})
     end
   end
 
@@ -86,18 +86,18 @@ defmodule Sink.Connection.ProtocolTest do
   end
 
   describe "decode_frame/1 - connection request" do
-    test "decodes connection request with application version and no instance_id" do
-      encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", nil}})
-      assert {:connection_request, 0, {"v1.0.0", nil}} = Protocol.decode_frame(encoded)
+    test "decodes connection request with no server_instance_id" do
+      encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", {1, nil}}})
+      assert {:connection_request, 0, {"v1.0.0", {1, nil}}} = Protocol.decode_frame(encoded)
     end
 
-    test "decodes connection request with application version and instance_id" do
-      encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", 1}})
-      assert {:connection_request, 0, {"v1.0.0", 1}} = Protocol.decode_frame(encoded)
+    test "decodes connection request with server_instance_id" do
+      encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", {1, 2}}})
+      assert {:connection_request, 0, {"v1.0.0", {1, 2}}} = Protocol.decode_frame(encoded)
     end
 
     test "errors decoding connection request with unsupported protocol version" do
-      encoded = Protocol.encode_frame({:connection_request, 1, {"v1.0.0", 1}})
+      encoded = Protocol.encode_frame({:connection_request, 1, {"v1.0.0", {1, nil}}})
       assert {:error, :unsupported_protocol_version} = Protocol.decode_frame(encoded)
     end
   end

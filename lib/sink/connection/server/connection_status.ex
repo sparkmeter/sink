@@ -7,25 +7,28 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   @type t :: %__MODULE__{
           connection_state:
             :awaiting_connection_request | :connected | :disconnecting | :quarantined,
-          instance_id: nil | binary,
+          instance_ids: %{server: Protocol.instance_id(), client: nil | Protocol.instance_id()},
           application_version: term,
           reason: nil | binary
         }
 
   defstruct [
     :connection_state,
-    :instance_id,
+    :instance_ids,
     :application_version,
     :reason
   ]
 
-  @spec init({:ok, Protocol.instance_id()} | {:quarantine, Protocol.nack_data()}) :: t
-  def init(instance_id_or_quarantine) do
-    case instance_id_or_quarantine do
-      {:ok, instance_id} ->
+  @spec init(
+          {:ok, Protocol.instance_id(), Protocol.instance_id() | nil}
+          | {:quarantine, Protocol.nack_data()}
+        ) :: t
+  def init(instance_ids_or_quarantine) do
+    case instance_ids_or_quarantine do
+      {:ok, %{server: _, client: _} = instance_ids} ->
         %__MODULE__{
           connection_state: :awaiting_connection_request,
-          instance_id: instance_id
+          instance_ids: Map.take(instance_ids, [:server, :client])
         }
 
       {:quarantined, reason} ->
@@ -72,16 +75,16 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   def connection_request(
         %__MODULE__{connection_state: :quarantined} = state,
         _version,
-        _instance_id
+        _instance_ids
       ) do
     {{:quarantined, state.reason}, state}
   end
 
-  def connection_request(state, version, client_instance_id) do
+  def connection_request(state, version, instance_ids_inc) do
     case check_connection_request(
            state.connection_state,
-           state.instance_id,
-           client_instance_id
+           state.instance_ids,
+           instance_ids_inc
          ) do
       {:ok, resp} ->
         {resp, %__MODULE__{state | connection_state: :connected, application_version: version}}
@@ -92,26 +95,11 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     end
   end
 
-  defp check_connection_request(
-         :awaiting_connection_request,
-         instance_id,
-         instance_id
-       )
-       when is_integer(instance_id) do
-    {:ok, :connected}
-  end
-
-  defp check_connection_request(:awaiting_connection_request, instance_id, nil)
-       when is_integer(instance_id) do
-    {:ok, {:hello_new_client, instance_id}}
-  end
-
-  defp check_connection_request(
-         :awaiting_connection_request,
-         instance_id,
-         client_instance_id
-       )
-       when is_integer(instance_id) and is_integer(client_instance_id) do
-    {:error, :instance_id_mismatch}
+  defp check_connection_request(:awaiting_connection_request, server_ids, client_ids) do
+    case Sink.Connection.instance_id_handshake(server_ids, client_ids) do
+      {:ok, :known} -> {:ok, :connected}
+      {:ok, :new} -> {:ok, {:hello_new_client, server_ids.server}}
+      {:error, :mismatch} -> {:error, :instance_id_mismatch}
+    end
   end
 end

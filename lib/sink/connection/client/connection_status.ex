@@ -6,21 +6,22 @@ defmodule Sink.Connection.Client.ConnectionStatus do
 
   @type t :: %__MODULE__{
           connection_state: :requesting_connection | :connected | :disconnecting,
-          instance_id: Protocol.instance_id() | nil,
+          instance_ids: %{server: nil | Protocol.instance_id(), client: Protocol.instance_id()},
           reason: nil | binary
         }
 
   defstruct [
     :connection_state,
-    :instance_id,
+    :instance_ids,
     :reason
   ]
 
-  @spec init(Protocol.instance_id() | nil) :: t
-  def init(instance_id) when is_nil(instance_id) or is_integer(instance_id) do
+  @spec init(%{server: nil | Protocol.instance_id(), client: Protocol.instance_id()}) :: t
+  def init(%{server: server, client: client} = instance_ids)
+      when is_nil(server) or (is_integer(server) and is_integer(client)) do
     %__MODULE__{
       connection_state: :requesting_connection,
-      instance_id: instance_id,
+      instance_ids: instance_ids,
       reason: nil
     }
   end
@@ -33,13 +34,14 @@ defmodule Sink.Connection.Client.ConnectionStatus do
   def connected?(%__MODULE__{connection_state: :connected}), do: true
   def connected?(%__MODULE__{connection_state: _}), do: false
 
-  def instance_id(%__MODULE__{instance_id: hash}), do: hash
+  def instance_ids(%__MODULE__{instance_ids: map}), do: map
 
   def connection_response(
         %__MODULE__{connection_state: :requesting_connection} = state,
-        {:hello_new_client, instance_id}
+        {:hello_new_client, server_instance_id}
       ) do
-    %__MODULE__{state | connection_state: :connected, instance_id: instance_id}
+    instance_ids = Map.put(state.instance_ids, :server, server_instance_id)
+    %__MODULE__{state | connection_state: :connected, instance_ids: instance_ids}
   end
 
   def connection_response(

@@ -367,13 +367,13 @@ defmodule Sink.Connection.ServerHandler do
           handler.handle_connection_response(new_state.client, result)
           {new_state, {:connection_response, {:connection_response, result}}}
 
-        {:connection_request, _protocol_version, {version, instance_id}} ->
+        {:connection_request, _protocol_version, {version, {client, server}}} ->
           {response, new_connection_status} =
             if state.handler.supported_application_version?(client_id, version) do
               ConnectionStatus.connection_request(
                 state.connection_status,
                 version,
-                instance_id
+                %{client: client, server: server}
               )
             else
               {:unsupported_application_version,

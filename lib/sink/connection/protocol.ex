@@ -5,6 +5,8 @@ defmodule Sink.Connection.Protocol do
   @typedoc "32-bit integer to uniquely identify a given server instance"
   @type instance_id :: integer
 
+  @type instance_ids :: {instance_id, instance_id | nil}
+
   @typedoc "Client application version in string format"
   @type application_version :: String.t()
 
@@ -12,7 +14,7 @@ defmodule Sink.Connection.Protocol do
   @type message_id :: pos_integer()
 
   @type message ::
-          {:connection_request, {application_version, instance_id | nil}}
+          {:connection_request, {application_version, instance_ids}}
           | {:connection_response,
              :connected
              | {:hello_new_client, instance_id}
@@ -42,20 +44,22 @@ defmodule Sink.Connection.Protocol do
 
   # Connection Request (0)
 
-  def encode_frame({:connection_request, {app_version, instance_id}}) do
-    encode_frame({:connection_request, @protocol_version, {app_version, instance_id}})
+  def encode_frame({:connection_request, {app_version, instance_ids}}) do
+    encode_frame({:connection_request, @protocol_version, {app_version, instance_ids}})
   end
 
-  def encode_frame({:connection_request, protocol_version, {app_version, instance_id}}) do
+  def encode_frame({:connection_request, protocol_version, {app_version, instance_ids}}) do
+    {client_instance_id, server_instance_id} = instance_ids
     app_version_chunk = Helpers.encode_chunk(app_version)
+    client_instance_id_chunk = <<client_instance_id::32>>
 
-    id_chunk =
-      case instance_id do
+    server_instance_id_chunk =
+      case server_instance_id do
         id when is_integer(id) -> <<id::32>>
         nil -> <<>>
       end
 
-    payload = app_version_chunk <> id_chunk
+    payload = app_version_chunk <> client_instance_id_chunk <> server_instance_id_chunk
     do_encode_frame(@message_type_id_connection_request, protocol_version, payload)
   end
 
@@ -156,15 +160,15 @@ defmodule Sink.Connection.Protocol do
     if protocol_version not in @supported_protocol_versions do
       {:error, :unsupported_protocol_version}
     else
-      {version, id_chunk} = Helpers.decode_chunk(rest)
+      {version, <<client_instance_id::32, server_id_chunk::binary>>} = Helpers.decode_chunk(rest)
 
-      instance_id =
-        case id_chunk do
+      server_instance_id =
+        case server_id_chunk do
           <<>> -> nil
           <<instance_id::32>> -> instance_id
         end
 
-      {:connection_request, protocol_version, {version, instance_id}}
+      {:connection_request, protocol_version, {version, {client_instance_id, server_instance_id}}}
     end
   end
 

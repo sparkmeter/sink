@@ -16,7 +16,10 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @doc """
   Tell the connection the instance_id of previous connections if present
   """
-  @callback last_instance_id() :: Protocol.instance_id() | nil
+  @callback instance_ids() :: %{
+              server: nil | Protocol.instance_id(),
+              client: Protocol.instance_id()
+            }
 
   @doc """
   Tell the connection what application version is running.

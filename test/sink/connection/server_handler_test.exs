@@ -35,7 +35,7 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       ServerConnectionHandlerMock
       |> expect(:authenticate_client, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:client_configuration, fn "test-client" -> {:ok, 1} end)
+      |> expect(:client_configuration, fn "test-client" -> {:ok, %{server: 2, client: 1}} end)
 
       start_opts = [
         ref,
@@ -63,7 +63,7 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       ServerConnectionHandlerMock
       |> expect(:authenticate_client, 2, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:client_configuration, 2, fn "test-client" -> {:ok, 1} end)
+      |> expect(:client_configuration, 2, fn "test-client" -> {:ok, %{server: 2, client: 1}} end)
 
       start_opts = [
         ref,
@@ -449,7 +449,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       socket: 123,
       transport: TransportMock,
       peername: :fake,
-      connection_status: ConnectionStatus.init({:ok, 1}),
+      connection_status: ConnectionStatus.init({:ok, %{server: 2, client: 1}}),
       handler: ServerConnectionHandlerMock,
       ssl_opts: :fake,
       inflight: %Inflight{

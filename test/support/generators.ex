@@ -18,8 +18,10 @@ defmodule Sink.Generators do
 
   def connection_request_message(protocol_version) do
     gen all version <- string(:printable),
-            maybe_instance_id <- one_of([constant(nil), instance_id()]) do
-      {:connection_request, protocol_version, {version, maybe_instance_id}}
+            client_instance_id <- instance_id(),
+            maybe_server_instance_id <- one_of([constant(nil)]) do
+      {:connection_request, protocol_version,
+       {version, {client_instance_id, maybe_server_instance_id}}}
     end
   end
 
