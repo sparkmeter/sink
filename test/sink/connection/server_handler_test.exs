@@ -104,7 +104,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         ServerConnectionHandlerMock,
         :handle_connection_response,
-        fn "test-client", {:unsupported_protocol_version, 11} ->
+        fn "test-client", :unsupported_protocol_version ->
           :ok
         end
       )
@@ -117,8 +117,7 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       assert_received {:send, resp}
 
-      assert resp ==
-               Protocol.encode_frame({:connection_response, {:unsupported_protocol_version, 11}})
+      assert resp == Protocol.encode_frame({:connection_response, :unsupported_protocol_version})
     end
   end
 

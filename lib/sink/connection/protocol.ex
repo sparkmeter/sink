@@ -18,7 +18,7 @@ defmodule Sink.Connection.Protocol do
              | {:hello_new_client, instance_id}
              | :instance_id_mismatch
              | {:quarantined, payload :: binary}
-             | {:unsupported_protocol_version, term}
+             | :unsupported_protocol_version
              | :unsupported_application_version}
           | {:ack, message_id}
           | {:publish, message_id, payload :: binary}
@@ -28,12 +28,12 @@ defmodule Sink.Connection.Protocol do
 
   @type nack_data() :: {binary(), String.t()}
 
-  # when we get to Sink 1.0 this will be 0 and we'll delete / deprecate anything
-  # 8 and higher
-  @protocol_version 8
-  @supported_protocol_versions [8]
+  @protocol_version 0
+  @supported_protocol_versions [0]
   @message_type_id_connection_request 0
   @message_type_id_connection_response 1
+
+  def supported_protocol_versions, do: @supported_protocol_versions
 
   @doc """
   Encode various types of messages into their encompasing frame.
@@ -42,15 +42,11 @@ defmodule Sink.Connection.Protocol do
 
   # Connection Request (0)
 
-  def encode_frame({:connection_request, @protocol_version, {app_version, instance_id}}) do
-    encode_frame({:connection_request, {app_version, instance_id}})
-  end
-
-  def encode_frame({:connection_request, protocol_version, _}) do
-    raise "Received invalid protocol version: #{protocol_version}"
-  end
-
   def encode_frame({:connection_request, {app_version, instance_id}}) do
+    encode_frame({:connection_request, @protocol_version, {app_version, instance_id}})
+  end
+
+  def encode_frame({:connection_request, protocol_version, {app_version, instance_id}}) do
     app_version_chunk = Helpers.encode_chunk(app_version)
 
     id_chunk =
@@ -60,7 +56,7 @@ defmodule Sink.Connection.Protocol do
       end
 
     payload = app_version_chunk <> id_chunk
-    do_encode_frame(@message_type_id_connection_request, @protocol_version, payload)
+    do_encode_frame(@message_type_id_connection_request, protocol_version, payload)
   end
 
   # Connection Response (1)
@@ -82,9 +78,8 @@ defmodule Sink.Connection.Protocol do
     do_encode_frame(@message_type_id_connection_response, 3, payload)
   end
 
-  def encode_frame({:connection_response, {:unsupported_protocol_version, protocol_version}}) do
-    payload = <<protocol_version::8>>
-    do_encode_frame(@message_type_id_connection_response, 4, payload)
+  def encode_frame({:connection_response, :unsupported_protocol_version}) do
+    do_encode_frame(@message_type_id_connection_response, 4)
   end
 
   def encode_frame({:connection_response, :unsupported_application_version}) do
@@ -159,7 +154,7 @@ defmodule Sink.Connection.Protocol do
 
   def decode_frame(<<@message_type_id_connection_request::4, protocol_version::4, rest::binary>>) do
     if protocol_version not in @supported_protocol_versions do
-      {:error, :unsupported_protocol_version, protocol_version}
+      {:error, :unsupported_protocol_version}
     else
       {version, id_chunk} = Helpers.decode_chunk(rest)
 
@@ -191,8 +186,8 @@ defmodule Sink.Connection.Protocol do
     {:connection_response, {:quarantined, payload}}
   end
 
-  def decode_frame(<<@message_type_id_connection_response::4, 4::4, protocol_version::8>>) do
-    {:connection_response, {:unsupported_protocol_version, protocol_version}}
+  def decode_frame(<<@message_type_id_connection_response::4, 4::4>>) do
+    {:connection_response, :unsupported_protocol_version}
   end
 
   def decode_frame(<<@message_type_id_connection_response::4, 5::4>>) do

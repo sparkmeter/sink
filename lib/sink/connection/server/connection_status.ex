@@ -51,15 +51,6 @@ defmodule Sink.Connection.Server.ConnectionStatus do
     state.connection_state == :disconnecting
   end
 
-  def client_instantiated_at(state) do
-    if state.client_instantiated_ats do
-      {c_instantiated_at, _} = state.client_instantiated_ats
-      c_instantiated_at
-    else
-      nil
-    end
-  end
-
   def unsupported_application_version(%__MODULE__{} = state) do
     %__MODULE__{state | connection_state: :disconnecting}
   end
@@ -73,7 +64,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   """
   def connection_request(
         %__MODULE__{} = state,
-        {:unsupported_protocol_version, _protocol_version}
+        :unsupported_protocol_version
       ) do
     %__MODULE__{state | connection_state: :disconnecting}
   end
@@ -81,7 +72,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
   def connection_request(
         %__MODULE__{connection_state: :quarantined} = state,
         _version,
-        _c_instantiated_ats
+        _instance_id
       ) do
     {{:quarantined, state.reason}, state}
   end

@@ -18,7 +18,7 @@ defmodule Sink.Connection.ClientConnectionTest do
   alias Sink.TestEvent
   alias Sink.Connection.Transport.SSLMock, as: TransportMock
 
-  @protocol_version 8
+  @protocol_version 0
   @unix_now 1_618_150_125
 
   setup :set_mox_from_context

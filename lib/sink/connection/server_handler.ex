@@ -359,9 +359,7 @@ defmodule Sink.Connection.ServerHandler do
       message
       |> Connection.Protocol.decode_frame()
       |> case do
-        {:error, :unsupported_protocol_version, protocol_version} ->
-          result = {:unsupported_protocol_version, protocol_version}
-
+        {:error, :unsupported_protocol_version = result} ->
           new_connection_status =
             ConnectionStatus.connection_request(state.connection_status, result)
 

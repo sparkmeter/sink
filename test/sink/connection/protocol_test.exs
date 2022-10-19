@@ -5,30 +5,25 @@ defmodule Sink.Connection.ProtocolTest do
 
   describe "encode_frame/1 - connection request" do
     test "encodes connection request with application version and no instance_id" do
-      assert <<0::4, 8::4, rest::binary>> =
+      assert <<0::4, 0::4, rest::binary>> =
                Protocol.encode_frame({:connection_request, {"v1.0.0", nil}})
 
       assert {"v1.0.0", <<>>} = Protocol.Helpers.decode_chunk(rest)
     end
 
     test "encodes connection request with application version and instance_id" do
-      assert <<0::4, 8::4, rest::binary>> =
+      assert <<0::4, 0::4, rest::binary>> =
                Protocol.encode_frame({:connection_request, {"v1.0.0", 1}})
 
       assert {"v1.0.0", <<1::32>>} = Protocol.Helpers.decode_chunk(rest)
     end
 
     test "can explicitly pass protocol version" do
-      assert <<0::4, 8::4, rest::binary>> =
-               Protocol.encode_frame({:connection_request, 8, {"v1.0.0", 1}})
+      assert <<0::4, 0::4, _rest::binary>> =
+               Protocol.encode_frame({:connection_request, 0, {"v1.0.0", 1}})
 
-      assert {"v1.0.0", <<1::32>>} = Protocol.Helpers.decode_chunk(rest)
-    end
-
-    test "only protocol version 8 is allowed" do
-      assert_raise RuntimeError, "Received invalid protocol version: 7", fn ->
-        Protocol.encode_frame({:connection_request, 7, {"v1.0.0", 1}})
-      end
+      assert <<0::4, 15::4, _rest::binary>> =
+               Protocol.encode_frame({:connection_request, 15, {"v1.0.0", 1}})
     end
   end
 
@@ -55,11 +50,8 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "encodes connection response when protocol version is unsupported" do
-      assert <<1::4, 4::4, 0::8>> =
-               Protocol.encode_frame({:connection_response, {:unsupported_protocol_version, 0}})
-
-      assert <<1::4, 4::4, 255::8>> =
-               Protocol.encode_frame({:connection_response, {:unsupported_protocol_version, 255}})
+      assert <<1::4, 4::4>> =
+               Protocol.encode_frame({:connection_response, :unsupported_protocol_version})
     end
 
     test "encodes connection response when application version is unsupported" do
@@ -96,12 +88,17 @@ defmodule Sink.Connection.ProtocolTest do
   describe "decode_frame/1 - connection request" do
     test "decodes connection request with application version and no instance_id" do
       encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", nil}})
-      assert {:connection_request, 8, {"v1.0.0", nil}} = Protocol.decode_frame(encoded)
+      assert {:connection_request, 0, {"v1.0.0", nil}} = Protocol.decode_frame(encoded)
     end
 
     test "decodes connection request with application version and instance_id" do
       encoded = Protocol.encode_frame({:connection_request, {"v1.0.0", 1}})
-      assert {:connection_request, 8, {"v1.0.0", 1}} = Protocol.decode_frame(encoded)
+      assert {:connection_request, 0, {"v1.0.0", 1}} = Protocol.decode_frame(encoded)
+    end
+
+    test "errors decoding connection request with unsupported protocol version" do
+      encoded = Protocol.encode_frame({:connection_request, 1, {"v1.0.0", 1}})
+      assert {:error, :unsupported_protocol_version} = Protocol.decode_frame(encoded)
     end
   end
 
@@ -132,15 +129,9 @@ defmodule Sink.Connection.ProtocolTest do
     end
 
     test "decodes connection response when protocol version is unsupported" do
-      encoded = Protocol.encode_frame({:connection_response, {:unsupported_protocol_version, 0}})
+      encoded = Protocol.encode_frame({:connection_response, :unsupported_protocol_version})
 
-      assert {:connection_response, {:unsupported_protocol_version, 0}} =
-               Protocol.decode_frame(encoded)
-
-      encoded =
-        Protocol.encode_frame({:connection_response, {:unsupported_protocol_version, 255}})
-
-      assert {:connection_response, {:unsupported_protocol_version, 255}} =
+      assert {:connection_response, :unsupported_protocol_version} =
                Protocol.decode_frame(encoded)
     end
 
@@ -193,6 +184,14 @@ defmodule Sink.Connection.ProtocolTest do
       encoded = Protocol.encode_frame(message)
       decoded = Protocol.decode_frame(encoded)
       assert message == decoded
+    end
+  end
+
+  property "unsupported protocol versions can be encoded and decode to an error" do
+    check all protocol_version <- Sink.Generators.unsupported_protocol_version(),
+              message <- Sink.Generators.connection_request_message(protocol_version) do
+      encoded = Protocol.encode_frame(message)
+      assert {:error, :unsupported_protocol_version} = Protocol.decode_frame(encoded)
     end
   end
 end

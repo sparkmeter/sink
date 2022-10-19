@@ -3,10 +3,11 @@ defmodule Sink.Generators do
   Streamdata generators useful for testing
   """
   use ExUnitProperties
+  alias Sink.Connection.Protocol
 
   def messages do
     one_of([
-      connection_request_message(),
+      connection_request_message(0),
       connection_response_message(),
       ack_message(),
       publish_message(),
@@ -15,10 +16,10 @@ defmodule Sink.Generators do
     ])
   end
 
-  def connection_request_message do
+  def connection_request_message(protocol_version) do
     gen all version <- string(:printable),
             maybe_instance_id <- one_of([constant(nil), instance_id()]) do
-      {:connection_request, 8, {version, maybe_instance_id}}
+      {:connection_request, protocol_version, {version, maybe_instance_id}}
     end
   end
 
@@ -29,7 +30,7 @@ defmodule Sink.Generators do
                 tuple({constant(:hello_new_client), instance_id()}),
                 constant(:instance_id_mismatch),
                 tuple({constant(:quarantined), binary()}),
-                tuple({constant(:unsupported_protocol_version), protocol_version()}),
+                constant(:unsupported_protocol_version),
                 constant(:unsupported_application_version)
               ]) do
       {:connection_response, response}
@@ -63,7 +64,18 @@ defmodule Sink.Generators do
   end
 
   def protocol_version do
-    integer(0..255)
+    integer(0..15)
+  end
+
+  def supported_protocol_version do
+    member_of(Protocol.supported_protocol_versions())
+  end
+
+  def unsupported_protocol_version do
+    gen all protocol_version <- protocol_version(),
+            protocol_version not in Protocol.supported_protocol_versions() do
+      protocol_version
+    end
   end
 
   def instance_id do
