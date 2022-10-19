@@ -10,10 +10,11 @@ server are compatible and are who each other expects.
 
 The attributes are:
 * protocol version - the version of Sink the client is requesting to use
-* instance_id - the instance_id of the clients last connection if there has been one
+* client_instance_id - the instance_id of the client itself
+* server_instance_id - the server_instance_id of the last successful connection if there has been one
 * application_version - the application version running on the client
 
-The instance_id is intended to prevent devices who may authenticate fine, but 
+The instance_ids are intended to prevent devices who may authenticate fine, but 
 had been connected to different instances before. For example, if a device used 
 to connect to a staging environment also has somehow has credentials in production 
 or if a device was wiped and no longer has the same history the server expects.
@@ -30,11 +31,11 @@ who the client expected.
 ### Hello New Client
 
 The server has accepted the new client's connection and is telling the client 
-the `instance_id` value.
+its `instance_id` value.
 
 ### Instance ID Mismatch
 
-The client's instance_id was not what the server expected. The connection will close.
+The client and server's instance_ids did not match up. The connection will close.
 
 ### Quarantined
 
