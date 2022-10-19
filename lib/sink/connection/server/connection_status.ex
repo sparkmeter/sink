@@ -69,8 +69,7 @@ defmodule Sink.Connection.Server.ConnectionStatus do
 
   When a server receives a connection request message it checks the message details against
   what it expects for that client to ensure everything matches. If something does not match
-  then the server will respond with what the mismatch is and either close the connection (tbd)
-  or keep it connected, but not active.
+  then the server will respond with what the mismatch is and close the connection.
   """
   def connection_request(
         %__MODULE__{} = state,

@@ -151,15 +151,6 @@ defmodule Sink.Connection.ServerHandler do
       false
   end
 
-  def active?(client_id) do
-    @registry
-    |> Registry.lookup(client_id)
-    |> case do
-      [] -> false
-      [{pid, _}] -> GenServer.call(pid, :active?)
-    end
-  end
-
   def get_inflight(client_id) do
     {:ok, client_id |> whereis() |> GenServer.call(:get_inflight)}
   catch
@@ -376,7 +367,6 @@ defmodule Sink.Connection.ServerHandler do
 
           new_state = %State{state | connection_status: new_connection_status}
           handler.handle_connection_response(new_state.client, result)
-          # todo: close connection
           {new_state, {:connection_response, {:connection_response, result}}}
 
         {:connection_request, _protocol_version, {version, instance_id}} ->
@@ -492,8 +482,6 @@ defmodule Sink.Connection.ServerHandler do
         :pong ->
           Sink.Telemetry.pong(:received, %{client_id: client_id})
           {state, nil}
-
-          # todo: handle events when connection is not active
       end
 
     new_state = State.log_received(new_state, now())
