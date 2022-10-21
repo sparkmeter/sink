@@ -2,6 +2,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @moduledoc """
   Defines the interface for connection events.
   """
+  alias Sink.Connection.Protocol
 
   @type ack_key() :: {event_type_id(), key(), offset()}
   @type client_id() :: String.t()
@@ -11,24 +12,39 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type schema_version() :: non_neg_integer()
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
-  @type nack_data() :: {binary(), String.t()}
   @type peer_cert() :: binary()
-  @type timestamp() :: non_neg_integer()
+  @type connection_responses ::
+          :connected
+          | {:hello_new_client, client_instance_id :: Protocol.instance_id()}
+          | :instance_id_mismatch
+          | {:quarantined, Protocol.nack_data()}
+          | :unsupported_protocol_version
+          | :unsupported_application_version
 
   @doc """
-  The connection has been established and authenticated
+  Return either `{:ok, %{server: Protocol.instance_id(), client: nil | Protocol.instance_id()}}` to
+  make the handshake by or `{:quarantined, reason}` to disconnect.
   """
-  @callback up(client_id()) :: :ok
+
+  @callback client_configuration(client_id()) ::
+              {:ok, %{server: Protocol.instance_id(), client: nil | Protocol.instance_id()}}
+              | {:quarantined, {binary(), binary()}}
 
   @doc """
-  The connection has been closed
+  Check that the client's firmware version is compatible with the server.
   """
-  @callback down(client_id()) :: :ok
+  @callback supported_application_version?(client_id(), Protocol.application_version()) ::
+              boolean()
 
   @doc """
   Run implementer's authentication logic
   """
   @callback authenticate_client(peer_cert()) :: {:ok, client_id()} | {:error, Exception.t()}
+
+  @doc """
+  Run implementer's logic for handling a "connection response"
+  """
+  @callback handle_connection_response(client_id(), connection_responses) :: :ok
 
   @doc """
   Run implementer's logic for handling a "ack"
@@ -38,7 +54,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @doc """
   Run implementer's logic for handling a "nack"
   """
-  @callback handle_nack(client_id(), ack_key(), nack_data()) :: :ok
+  @callback handle_nack(client_id(), ack_key(), Protocol.nack_data()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "publish" message.
@@ -46,5 +62,10 @@ defmodule Sink.Connection.ServerConnectionHandler do
   Should respond with either an ack or a nack with information about the nack
   """
   @callback handle_publish(client_id(), Sink.Event.t(), message_id()) ::
-              :ack | {:nack, nack_data()}
+              :ack | {:nack, Protocol.nack_data()}
+
+  @doc """
+  The connection has been closed
+  """
+  @callback down(client_id()) :: :ok
 end

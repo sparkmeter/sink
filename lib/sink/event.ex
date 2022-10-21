@@ -15,4 +15,8 @@ defmodule Sink.Event do
   fields = [:event_type_id, :key, :offset, :timestamp, :event_data, :schema_version]
   @enforce_keys fields
   defstruct fields
+
+  def ack_key(%__MODULE__{} = event) do
+    {event.event_type_id, event.key, event.offset}
+  end
 end

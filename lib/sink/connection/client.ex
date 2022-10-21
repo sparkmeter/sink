@@ -29,7 +29,8 @@ defmodule Sink.Connection.Client do
       :transport,
       :connect_attempt_interval,
       :disconnect_reason,
-      :disconnect_time
+      :disconnect_time,
+      :connection_request_succeeded
     ]
 
     @first_connect_attempt 50
@@ -68,24 +69,23 @@ defmodule Sink.Connection.Client do
     end
 
     def backoff(%State{connect_attempt_interval: 5_000} = state) do
-      %State{state | connect_attempt_interval: 10_000}
-    end
-
-    def backoff(%State{connect_attempt_interval: 10_000} = state) do
-      %State{state | connect_attempt_interval: 20_000}
-    end
-
-    def backoff(%State{connect_attempt_interval: _} = state) do
       %State{state | connect_attempt_interval: 30_000}
     end
 
+    def backoff(%State{connect_attempt_interval: _} = state) do
+      %State{state | connect_attempt_interval: 60_000}
+    end
+
     def connected(%State{} = state, connection_pid) do
-      %State{state | connection_pid: connection_pid}
+      %State{state | connection_pid: connection_pid, connect_attempt_interval: 300_000}
+    end
+
+    def connection_request_succeeded(%State{} = state) do
+      %State{state | connect_attempt_interval: nil}
     end
 
     def disconnected(%State{} = state, reason, now) do
       struct!(state,
-        connect_attempt_interval: nil,
         connection_pid: nil,
         disconnect_reason: reason,
         disconnect_time: now
@@ -99,8 +99,11 @@ defmodule Sink.Connection.Client do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @doc """
+  Is the client connected to the server?
+  """
   def connected? do
-    !!Process.whereis(ClientConnection)
+    ClientConnection.connected?()
   end
 
   @doc """
@@ -191,6 +194,7 @@ defmodule Sink.Connection.Client do
             Logger.info("Connected to Sink server @ #{state.host}")
             # todo: send message to handler that we're connected
 
+            Process.send_after(self(), :check_if_connection_request_succeeded, 100)
             {:noreply, State.connected(state, pid)}
 
           {:error, reason} ->
@@ -213,11 +217,20 @@ defmodule Sink.Connection.Client do
     {:noreply, state}
   end
 
+  def handle_info(:check_if_connection_request_succeeded, state) do
+    if connected?() do
+      {:noreply, State.connection_request_succeeded(state)}
+    else
+      Process.send_after(self(), :check_if_connection_request_succeeded, 100)
+      {:noreply, state}
+    end
+  end
+
   def handle_info({:EXIT, pid, reason}, state) do
     new_state =
       if pid == state.connection_pid do
         Logger.info("Disconnected from Sink server")
-        Process.send_after(self(), :open_connection, 5_000)
+        on_connection_init_failure(state)
         State.disconnected(state, reason, now())
       else
         state
@@ -242,11 +255,16 @@ defmodule Sink.Connection.Client do
 
   defp on_connection_init_failure(state) do
     new_state = State.backoff(state)
-    Process.send_after(self(), :open_connection, new_state.connect_attempt_interval)
+    Process.send_after(self(), :open_connection, add_jitter(new_state.connect_attempt_interval))
     new_state
   end
 
   defp now do
     System.monotonic_time(:millisecond)
+  end
+
+  defp add_jitter(interval) do
+    variance = div(interval, 10)
+    interval + Enum.random(-variance..variance)
   end
 end
