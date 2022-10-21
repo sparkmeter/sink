@@ -11,7 +11,7 @@ defmodule Sink.Connection.Protocol do
   @type application_version :: String.t()
 
   @typedoc "ID for a published message."
-  @type message_id :: pos_integer()
+  @type message_id :: non_neg_integer()
 
   @type message ::
           {:connection_request, {application_version, instance_ids}}
