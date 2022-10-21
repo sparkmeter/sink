@@ -2,12 +2,10 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @moduledoc """
   Defines the interface for connection events.
   """
-  alias Sink.Connection
   alias Sink.Connection.Protocol
 
   @type ack_key() :: {event_type_id(), key(), offset()}
   @type client_id() :: String.t()
-  @type client() :: {String.t(), Connection.timestamp()}
   @type event_type_id() :: pos_integer()
   @type key() :: binary()
   @type offset() :: non_neg_integer()
@@ -46,28 +44,28 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @doc """
   Run implementer's logic for handling a "connection response"
   """
-  @callback handle_connection_response(client(), connection_responses) :: :ok
+  @callback handle_connection_response(client_id(), connection_responses) :: :ok
 
   @doc """
   Run implementer's logic for handling a "ack"
   """
-  @callback handle_ack(client(), ack_key()) :: :ok
+  @callback handle_ack(client_id(), ack_key()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "nack"
   """
-  @callback handle_nack(client(), ack_key(), Protocol.nack_data()) :: :ok
+  @callback handle_nack(client_id(), ack_key(), Protocol.nack_data()) :: :ok
 
   @doc """
   Run implementer's logic for handling a "publish" message.
 
   Should respond with either an ack or a nack with information about the nack
   """
-  @callback handle_publish(client(), Sink.Event.t(), message_id()) ::
+  @callback handle_publish(client_id(), Sink.Event.t(), message_id()) ::
               :ack | {:nack, Protocol.nack_data()}
 
   @doc """
   The connection has been closed
   """
-  @callback down(client()) :: :ok
+  @callback down(client_id()) :: :ok
 end
