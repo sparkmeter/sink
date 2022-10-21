@@ -389,7 +389,7 @@ defmodule Sink.Connection.ServerHandler do
 
           case response do
             {:hello_new_client, _} ->
-              handler.handle_connection_response(new_state.client, :hello_new_client)
+              handler.handle_connection_response(new_state.client, {:hello_new_client, client})
 
             other ->
               handler.handle_connection_response(new_state.client, other)

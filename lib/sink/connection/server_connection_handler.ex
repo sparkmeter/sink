@@ -15,6 +15,13 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
   @type peer_cert() :: binary()
+  @type connection_responses ::
+          :connected
+          | {:hello_new_client, client_instance_id :: Protocol.instance_id()}
+          | :instance_id_mismatch
+          | {:quarantined, Protocol.nack_data()}
+          | :unsupported_protocol_version
+          | :unsupported_application_version
 
   @doc """
   Return either `{:ok, %{server: Protocol.instance_id(), client: nil | Protocol.instance_id()}}` to
@@ -39,7 +46,7 @@ defmodule Sink.Connection.ServerConnectionHandler do
   @doc """
   Run implementer's logic for handling a "connection response"
   """
-  @callback handle_connection_response(client(), Connection.connection_responses()) :: :ok
+  @callback handle_connection_response(client(), connection_responses) :: :ok
 
   @doc """
   Run implementer's logic for handling a "ack"

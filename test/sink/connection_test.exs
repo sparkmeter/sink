@@ -66,7 +66,7 @@ defmodule Sink.ConnectionTest do
       expect(@server_handler, :down, fn _ -> :ok end)
       expect(@client_handler, :down, fn -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", :hello_new_client ->
+      expect(@server_handler, :handle_connection_response, fn "abc123", {:hello_new_client, 1} ->
         :ok
       end)
 
@@ -106,7 +106,7 @@ defmodule Sink.ConnectionTest do
       expect(@server_handler, :down, fn _ -> :ok end)
       expect(@client_handler, :down, fn -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", :hello_new_client ->
+      expect(@server_handler, :handle_connection_response, fn "abc123", {:hello_new_client, 1} ->
         :ok
       end)
 

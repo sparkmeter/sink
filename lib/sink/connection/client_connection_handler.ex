@@ -2,7 +2,6 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @moduledoc """
   Defines the interface for connection events.
   """
-  alias Sink.Connection
   alias Sink.Connection.Protocol
 
   @type ack_key() :: {event_type_id(), key(), offset()}
@@ -12,6 +11,13 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @type schema_version() :: non_neg_integer()
   @type event_data() :: binary()
   @type message_id() :: non_neg_integer()
+  @type connection_responses ::
+          :connected
+          | {:hello_new_client, server_instance_id :: Protocol.instance_id()}
+          | :instance_id_mismatch
+          | {:quarantined, Protocol.nack_data()}
+          | :unsupported_protocol_version
+          | :unsupported_application_version
 
   @doc """
   Tell the connection the instance_id of previous connections if present
@@ -29,7 +35,7 @@ defmodule Sink.Connection.ClientConnectionHandler do
   @doc """
   Run implementer's logic for handling a "connection response"
   """
-  @callback handle_connection_response(Connection.connection_responses()) :: :ok
+  @callback handle_connection_response(connection_responses) :: :ok
 
   @doc """
   Run implementer's logic for handling a "ack"
