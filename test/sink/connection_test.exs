@@ -52,6 +52,7 @@ defmodule Sink.ConnectionTest do
   end
 
   describe "connecting" do
+    # TODO: Remove once connection requests are required
     test "considered connected on the server before connection request arrives when a request is not required",
          %{server_ssl: server_ssl, client_ssl: client_ssl} do
       existing = Application.get_env(:sink, :require_connection_request)
