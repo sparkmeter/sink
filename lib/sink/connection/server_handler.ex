@@ -242,6 +242,12 @@ defmodule Sink.Connection.ServerHandler do
               register_when_clear(client_id)
           end
 
+        if ConnectionStatus.connected?(state.connection_status) do
+          # Fake connection response to handle
+          # TODO: Remove once connection requests are required, as the condition will never be true
+          handler.handle_connection_response(state.client, :connected)
+        end
+
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
 
         schedule_check_keepalive(state.stats.keepalive_interval)

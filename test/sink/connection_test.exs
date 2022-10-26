@@ -52,6 +52,78 @@ defmodule Sink.ConnectionTest do
   end
 
   describe "connecting" do
+    test "considered connected on the server before connection request arrives when a request is not required",
+         %{server_ssl: server_ssl, client_ssl: client_ssl} do
+      existing = Application.get_env(:sink, :require_connection_request)
+      Application.put_env(:sink, :require_connection_request, false)
+
+      on_exit(fn ->
+        Application.put_env(:sink, :require_connection_request, existing)
+      end)
+
+      test = self()
+
+      # On Init
+      stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
+      stub(@client_handler, :instance_ids, fn -> %{client: 1, server: nil} end)
+
+      stub(@server_handler, :client_configuration, fn "abc123" ->
+        {:ok, %{server: 2, client: nil}}
+      end)
+
+      expect(@server_handler, :handle_connection_response, fn "abc123", :connected = state ->
+        send(test, {:handle_connection_response, state})
+        :ok
+      end)
+
+      # On connection request
+      expect(@client_handler, :application_version, fn -> @version end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version ->
+        send(test, :supported_application_version?)
+        true
+      end)
+
+      expect(@client_handler, :handle_connection_response, fn {:hello_new_client, 2} -> :ok end)
+
+      expect(@server_handler, :handle_connection_response, fn "abc123",
+                                                              {:hello_new_client, 1} = state ->
+        send(test, {:handle_connection_response, state})
+        :ok
+      end)
+
+      # On Stop
+      expect(@server_handler, :down, fn _ -> :ok end)
+      expect(@client_handler, :down, fn -> :ok end)
+
+      start_supervised!(
+        {Sink.Connection.ServerListener,
+         port: 9999, ssl_opts: server_ssl, handler: @server_handler}
+      )
+
+      start_supervised!(
+        {Sink.Connection.Client,
+         port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
+      )
+
+      Process.sleep(@time_to_connect)
+
+      assert Sink.Connection.Client.connected?()
+      assert Sink.Connection.ServerHandler.connected?("abc123")
+
+      assert_received msg
+      assert {:handle_connection_response, :connected} = msg
+
+      assert_received msg
+      assert :supported_application_version? = msg
+
+      assert_received msg
+      assert {:handle_connection_response, {:hello_new_client, 1}} = msg
+
+      stop_supervised!(Sink.Connection.Client)
+      stop_supervised!(Sink.Connection.ServerListener)
+    end
+
     test "hello new client", %{server_ssl: server_ssl, client_ssl: client_ssl} do
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: nil} end)
