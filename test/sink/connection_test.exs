@@ -9,6 +9,7 @@ defmodule Sink.ConnectionTest do
   @mod_transport Sink.Connection.Transport.SSLMock
   @client_handler Sink.Connection.ClientConnectionHandlerMock
   @server_handler Sink.Connection.ServerConnectionHandlerMock
+  @backoff Sink.Connection.Client.BackoffMock
   @event %Event{
     event_type_id: 1,
     key: <<1, 2, 3>>,
@@ -266,6 +267,8 @@ defmodule Sink.ConnectionTest do
         :ok
       end)
 
+      expect(@backoff, :backoff_duration, fn _, true -> :timer.seconds(1) end)
+
       start_supervised!(
         {Sink.Connection.ServerListener,
          port: 9999, ssl_opts: server_ssl, handler: @server_handler}
@@ -273,7 +276,11 @@ defmodule Sink.ConnectionTest do
 
       start_supervised!(
         {Sink.Connection.Client,
-         port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
+         port: 9999,
+         host: "localhost",
+         ssl_opts: client_ssl,
+         handler: @client_handler,
+         backoff: @backoff}
       )
 
       # # give it time to connect
@@ -311,6 +318,8 @@ defmodule Sink.ConnectionTest do
         :ok
       end)
 
+      expect(@backoff, :backoff_duration, fn _, true -> :timer.seconds(1) end)
+
       start_supervised!(
         {Sink.Connection.ServerListener,
          port: 9999, ssl_opts: server_ssl, handler: @server_handler}
@@ -318,7 +327,11 @@ defmodule Sink.ConnectionTest do
 
       start_supervised!(
         {Sink.Connection.Client,
-         port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
+         port: 9999,
+         host: "localhost",
+         ssl_opts: client_ssl,
+         handler: @client_handler,
+         backoff: @backoff}
       )
 
       # # give it time to connect
@@ -390,6 +403,8 @@ defmodule Sink.ConnectionTest do
         :ok
       end)
 
+      expect(@backoff, :backoff_duration, fn _, true -> :timer.seconds(1) end)
+
       start_supervised!(
         {Sink.Connection.ServerListener,
          port: 9999, ssl_opts: server_ssl, handler: @server_handler}
@@ -397,7 +412,11 @@ defmodule Sink.ConnectionTest do
 
       start_supervised!(
         {Sink.Connection.Client,
-         port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
+         port: 9999,
+         host: "localhost",
+         ssl_opts: client_ssl,
+         handler: @client_handler,
+         backoff: @backoff}
       )
 
       # give it time to connect
@@ -616,6 +635,8 @@ defmodule Sink.ConnectionTest do
     stub(@client_handler, :instance_ids, fn -> %{client: 1, server: 2} end)
     stub(@mod_transport, :send, fn _, _ -> :ok end)
 
+    expect(@backoff, :backoff_duration, fn 1, false -> :timer.seconds(1) end)
+
     logs =
       capture_log(fn ->
         start_supervised!(
@@ -626,7 +647,11 @@ defmodule Sink.ConnectionTest do
         client =
           start_supervised!(
             {Sink.Connection.Client,
-             port: 9999, host: "localhost", ssl_opts: client_ssl, handler: @client_handler}
+             port: 9999,
+             host: "localhost",
+             ssl_opts: client_ssl,
+             handler: @client_handler,
+             backoff: @backoff}
           )
 
         assert Process.alive?(client)

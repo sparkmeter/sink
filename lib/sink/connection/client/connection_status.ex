@@ -34,6 +34,12 @@ defmodule Sink.Connection.Client.ConnectionStatus do
   def connected?(%__MODULE__{connection_state: :connected}), do: true
   def connected?(%__MODULE__{connection_state: _}), do: false
 
+  @doc """
+  Is the client disconnecting due to a rejected connection request?
+  """
+  def disconnecting?(%__MODULE__{connection_state: :disconnecting}), do: true
+  def disconnecting?(%__MODULE__{connection_state: _}), do: false
+
   def instance_ids(%__MODULE__{instance_ids: map}), do: map
 
   def connection_response(

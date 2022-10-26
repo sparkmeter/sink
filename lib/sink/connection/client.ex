@@ -15,6 +15,8 @@ defmodule Sink.Connection.Client do
   require Logger
   alias Sink.Event
   alias Sink.Connection.ClientConnection
+  alias Sink.Connection.Client.Backoff
+  alias Sink.Connection.Client.DefaultBackoff
 
   ClientConnection
 
@@ -27,13 +29,12 @@ defmodule Sink.Connection.Client do
       :ssl_opts,
       :handler,
       :transport,
-      :connect_attempt_interval,
       :disconnect_reason,
-      :disconnect_time,
-      :connection_request_succeeded
+      :connection_request_succeeded,
+      :backoff_impl,
+      connection_attempts: 0,
+      disconnect_time: nil
     ]
-
-    @first_connect_attempt 50
 
     @doc """
     This was meant to mean "is the client connected?". However that may not be accurate since
@@ -43,7 +44,7 @@ defmodule Sink.Connection.Client do
 
     """
 
-    def init(port, host, ssl_opts, handler, transport) do
+    def init(port, host, ssl_opts, handler, transport, backoff) do
       %State{
         connection_pid: nil,
         port: port,
@@ -51,37 +52,26 @@ defmodule Sink.Connection.Client do
         ssl_opts: ssl_opts,
         handler: handler,
         transport: transport,
-        connect_attempt_interval: @first_connect_attempt,
-        disconnect_time: nil
+        backoff_impl: backoff
       }
     end
 
-    def backoff(%State{connect_attempt_interval: nil} = state) do
-      %State{state | connect_attempt_interval: @first_connect_attempt}
-    end
+    def backoff(
+          %State{connection_attempts: attempts} = state,
+          connection_request_rejected
+        ) do
+      new_state = %State{state | connection_attempts: attempts + 1}
 
-    def backoff(%State{connect_attempt_interval: @first_connect_attempt} = state) do
-      %State{state | connect_attempt_interval: 1_000}
-    end
+      backoff =
+        new_state.connection_attempts
+        |> state.backoff_impl.backoff_duration(connection_request_rejected)
+        |> Backoff.add_jitter()
 
-    def backoff(%State{connect_attempt_interval: 1_000} = state) do
-      %State{state | connect_attempt_interval: 5_000}
-    end
-
-    def backoff(%State{connect_attempt_interval: 5_000} = state) do
-      %State{state | connect_attempt_interval: 30_000}
-    end
-
-    def backoff(%State{connect_attempt_interval: _} = state) do
-      %State{state | connect_attempt_interval: 60_000}
+      {new_state, backoff}
     end
 
     def connected(%State{} = state, connection_pid) do
-      %State{state | connection_pid: connection_pid, connect_attempt_interval: 300_000}
-    end
-
-    def connection_request_succeeded(%State{} = state) do
-      %State{state | connect_attempt_interval: nil}
+      %State{state | connection_pid: connection_pid, connection_attempts: 0}
     end
 
     def disconnected(%State{} = state, reason, now) do
@@ -146,21 +136,21 @@ defmodule Sink.Connection.Client do
   end
 
   # Server callbacks
-
+  @impl true
   def init(init_arg) do
     port = Keyword.fetch!(init_arg, :port)
     host = Keyword.fetch!(init_arg, :host)
     ssl_opts = Keyword.fetch!(init_arg, :ssl_opts)
     handler = Keyword.fetch!(init_arg, :handler)
     transport = Keyword.get(init_arg, :transport, Sink.Connection.Transport.SSL)
+    backoff = Keyword.get(init_arg, :backoff, DefaultBackoff)
     Process.flag(:trap_exit, true)
-    state = State.init(port, host, ssl_opts, handler, transport)
+    state = State.init(port, host, ssl_opts, handler, transport, backoff)
 
-    Process.send_after(self(), :open_connection, state.connect_attempt_interval)
-
-    {:ok, state}
+    {:ok, state, {:continue, :open_connection}}
   end
 
+  @impl true
   def handle_call(:connection_status, _from, %State{disconnect_time: nil} = state) do
     {:reply, :disconnected, state}
   end
@@ -170,7 +160,37 @@ defmodule Sink.Connection.Client do
     {:reply, {:disconnected, now() - time}, state}
   end
 
+  @impl true
   def handle_info(:open_connection, %State{} = state) do
+    {:noreply, state, {:continue, :open_connection}}
+  end
+
+  # Ignore error message of `:ssl.connect`
+  # They are sent to this process before the connection is transfered to `ClientConnection`.
+  # They are sent even if we handle the `{:error, term}` response above.
+  def handle_info({err, _}, state)
+      when err in [:tcp_closed, :ssl_closed, :ssl_error, :tcp_error] do
+    {:noreply, state}
+  end
+
+  def handle_info({:EXIT, pid, reason}, %{connection_pid: pid} = state) do
+    case reason do
+      {:shutdown, :server_rejected_connection} ->
+        Logger.info("Sink server denied connection")
+        {:noreply, on_connection_failure(state, connection_request_rejected: true)}
+
+      _ ->
+        Logger.info("Disconnected from Sink server")
+        {:noreply, on_connection_failure(state)}
+    end
+  end
+
+  def handle_info({:EXIT, _pid, _reason}, state) do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_continue(:open_connection, %State{} = state) do
     opts =
       [:binary] ++
         Keyword.merge(state.ssl_opts,
@@ -193,53 +213,19 @@ defmodule Sink.Connection.Client do
           :ok ->
             Logger.info("Connected to Sink server @ #{state.host}")
             # todo: send message to handler that we're connected
-
-            Process.send_after(self(), :check_if_connection_request_succeeded, 100)
             {:noreply, State.connected(state, pid)}
 
           {:error, reason} ->
-            _ = ClientConnection.stop(:connection_tranfer_failed)
-            log_ssl_error(reason)
-            {:noreply, on_connection_init_failure(state)}
+            _ = ClientConnection.stop(:connection_transfer_failed)
+            {:noreply, state, {:continue, {:open_connection_failed, reason}}}
         end
 
       {:error, reason} ->
-        log_ssl_error(reason)
-        {:noreply, on_connection_init_failure(state)}
+        {:noreply, state, {:continue, {:open_connection_failed, reason}}}
     end
   end
 
-  # Ignore error message of `:ssl.connect`
-  # They are sent to this process before the connection is transfered to `ClientConnection`.
-  # They are sent even if we handle the `{:error, term}` response above.
-  def handle_info({err, _}, state)
-      when err in [:tcp_closed, :ssl_closed, :ssl_error, :tcp_error] do
-    {:noreply, state}
-  end
-
-  def handle_info(:check_if_connection_request_succeeded, state) do
-    if connected?() do
-      {:noreply, State.connection_request_succeeded(state)}
-    else
-      Process.send_after(self(), :check_if_connection_request_succeeded, 100)
-      {:noreply, state}
-    end
-  end
-
-  def handle_info({:EXIT, pid, reason}, state) do
-    new_state =
-      if pid == state.connection_pid do
-        Logger.info("Disconnected from Sink server")
-        on_connection_init_failure(state)
-        State.disconnected(state, reason, now())
-      else
-        state
-      end
-
-    {:noreply, new_state}
-  end
-
-  defp log_ssl_error(reason) do
+  def handle_continue({:open_connection_failed, reason}, state) do
     case reason do
       r when r in [[:econnrefused, :closed], :nxdomain] ->
         Logger.info("Can't find Sink server - #{inspect(reason)}")
@@ -251,20 +237,18 @@ defmodule Sink.Connection.Client do
       _ ->
         Logger.error("Failed to connect to Sink server, #{inspect(reason)}")
     end
+
+    {:noreply, on_connection_failure(state)}
   end
 
-  defp on_connection_init_failure(state) do
-    new_state = State.backoff(state)
-    Process.send_after(self(), :open_connection, add_jitter(new_state.connect_attempt_interval))
+  defp on_connection_failure(state, opts \\ []) do
+    connection_request_rejected = Keyword.get(opts, :connection_request_rejected, false)
+    {new_state, backoff} = State.backoff(state, connection_request_rejected)
+    Process.send_after(self(), :open_connection, backoff)
     new_state
   end
 
   defp now do
     System.monotonic_time(:millisecond)
-  end
-
-  defp add_jitter(interval) do
-    variance = div(interval, 10)
-    interval + Enum.random(-variance..variance)
   end
 end
