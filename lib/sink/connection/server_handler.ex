@@ -233,7 +233,7 @@ defmodule Sink.Connection.ServerHandler do
           )
 
         :ok =
-          case Registry.register(@registry, client_id, DateTime.utc_now()) do
+          case Registry.register(@registry, client_id, nil) do
             {:ok, _} ->
               :ok
 
@@ -401,6 +401,10 @@ defmodule Sink.Connection.ServerHandler do
               handler.handle_connection_response(new_state.client, other)
           end
 
+          if ConnectionStatus.connected?(new_state.connection_status) do
+            Registry.update_value(@registry, client_id, fn _ -> DateTime.utc_now() end)
+          end
+
           {new_state, {:connection_response, {:connection_response, encodeable_response}}}
 
         {:ack, message_id} ->
@@ -554,7 +558,7 @@ defmodule Sink.Connection.ServerHandler do
   end
 
   defp register_when_clear(client_id) do
-    case Registry.register(@registry, client_id, DateTime.utc_now()) do
+    case Registry.register(@registry, client_id, nil) do
       {:ok, _} ->
         :ok
 
