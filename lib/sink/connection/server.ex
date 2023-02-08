@@ -7,17 +7,15 @@ defmodule Sink.Connection.Server do
   """
   @spec connected_clients() :: list(String.t())
   def connected_clients do
-    Registry.select(@registry, [{{:"$1", :_, :_}, [], [:"$1"]}])
+    Registry.select(@registry, [{{:"$1", :_, :"$2"}, [{:"/=", :"$2", nil}], [:"$1"]}])
   end
 
   @doc """
   Returns the number of currently connected clients.
-
-  For large numbers of connected clients this will be more performant than `connected_clients`
   """
   @spec connected_clients_count() :: non_neg_integer()
   def connected_clients_count do
-    Registry.count(@registry)
+    length(connected_clients())
   end
 
   @doc """
@@ -29,7 +27,7 @@ defmodule Sink.Connection.Server do
     |> Registry.lookup(client_id)
     |> case do
       [] -> nil
-      [{_pid, connected_at}] -> connected_at
+      [{_pid, connected_at_or_nil}] -> connected_at_or_nil
     end
   end
 end

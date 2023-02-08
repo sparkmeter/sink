@@ -111,6 +111,8 @@ defmodule Sink.ConnectionTest do
 
       assert Sink.Connection.Client.connected?()
       assert Sink.Connection.ServerHandler.connected?("abc123")
+      assert %DateTime{} = Sink.Connection.Server.connected_at("abc123")
+      assert "abc123" in Sink.Connection.Server.connected_clients()
 
       assert_received msg
       assert {:handle_connection_response, :connected} = msg
@@ -157,6 +159,8 @@ defmodule Sink.ConnectionTest do
 
       assert Sink.Connection.Client.connected?()
       assert Sink.Connection.ServerHandler.connected?("abc123")
+      assert %DateTime{} = Sink.Connection.Server.connected_at("abc123")
+      assert "abc123" in Sink.Connection.Server.connected_clients()
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
@@ -197,6 +201,8 @@ defmodule Sink.ConnectionTest do
 
       assert Sink.Connection.Client.connected?()
       assert Sink.Connection.ServerHandler.connected?("abc123")
+      assert %DateTime{} = Sink.Connection.Server.connected_at("abc123")
+      assert "abc123" in Sink.Connection.Server.connected_clients()
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
@@ -235,6 +241,8 @@ defmodule Sink.ConnectionTest do
 
       refute Sink.Connection.Client.connected?()
       refute Sink.Connection.ServerHandler.connected?("abc123")
+      refute Sink.Connection.Server.connected_at("abc123")
+      refute "abc123" in Sink.Connection.Server.connected_clients()
 
       # # give it time to connect
 
@@ -242,6 +250,8 @@ defmodule Sink.ConnectionTest do
 
       assert Sink.Connection.Client.connected?()
       assert Sink.Connection.ServerHandler.connected?("abc123")
+      assert %DateTime{} = Sink.Connection.Server.connected_at("abc123")
+      assert "abc123" in Sink.Connection.Server.connected_clients()
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
@@ -282,6 +292,8 @@ defmodule Sink.ConnectionTest do
 
       refute Sink.Connection.Client.connected?()
       refute Sink.Connection.ServerHandler.connected?("abc123")
+      refute Sink.Connection.Server.connected_at("abc123")
+      refute "abc123" in Sink.Connection.Server.connected_clients()
 
       assert {:error, :no_connection} == Sink.Connection.Client.publish(@event, @ack_key)
 
@@ -327,6 +339,8 @@ defmodule Sink.ConnectionTest do
 
       refute Sink.Connection.Client.connected?()
       refute Sink.Connection.ServerHandler.connected?("abc123")
+      refute Sink.Connection.Server.connected_at("abc123")
+      refute "abc123" in Sink.Connection.Server.connected_clients()
 
       assert {:error, :no_connection} == Sink.Connection.Client.publish(@event, @ack_key)
 
@@ -368,6 +382,8 @@ defmodule Sink.ConnectionTest do
 
       refute Sink.Connection.Client.connected?()
       refute Sink.Connection.ServerHandler.connected?("abc123")
+      refute Sink.Connection.Server.connected_at("abc123")
+      refute "abc123" in Sink.Connection.Server.connected_clients()
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
@@ -408,6 +424,8 @@ defmodule Sink.ConnectionTest do
 
       refute Sink.Connection.Client.connected?()
       refute Sink.Connection.ServerHandler.connected?("abc123")
+      refute Sink.Connection.Server.connected_at("abc123")
+      refute "abc123" in Sink.Connection.Server.connected_clients()
 
       stop_supervised!(Sink.Connection.Client)
       stop_supervised!(Sink.Connection.ServerListener)
