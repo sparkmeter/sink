@@ -30,7 +30,6 @@ defmodule Sink.Connection.Client do
       :handler,
       :transport,
       :disconnect_reason,
-      :connection_request_succeeded,
       :backoff_impl,
       connection_attempts: 0,
       disconnect_time: nil
