@@ -35,7 +35,9 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       ServerConnectionHandlerMock
       |> expect(:authenticate_client, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:client_configuration, fn "test-client" -> {:ok, %{server: 2, client: 1}} end)
+      |> expect(:client_configuration, fn "test-client" ->
+        {:ok, %{server: 2, client: 1}, %{}}
+      end)
 
       start_opts = [
         ref,
@@ -63,7 +65,9 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       ServerConnectionHandlerMock
       |> expect(:authenticate_client, 2, fn _peer_cert -> {:ok, "test-client"} end)
-      |> expect(:client_configuration, 2, fn "test-client" -> {:ok, %{server: 2, client: 1}} end)
+      |> expect(:client_configuration, 2, fn "test-client" ->
+        {:ok, %{server: 2, client: 1}, %{}}
+      end)
 
       start_opts = [
         ref,
@@ -104,7 +108,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         ServerConnectionHandlerMock,
         :handle_connection_response,
-        fn "test-client", :unsupported_protocol_version ->
+        fn "test-client", :unsupported_protocol_version, _state ->
           :ok
         end
       )
@@ -118,6 +122,31 @@ defmodule Sink.Connection.ServerHandlerTest do
       assert_received {:send, resp}
 
       assert resp == Protocol.encode_frame({:connection_response, :unsupported_protocol_version})
+    end
+
+    test "handle_connection_response receives handler state", %{state: state} do
+      test = self()
+
+      stub(TransportMock, :send, fn 123, _frame -> :ok end)
+
+      expect(
+        ServerConnectionHandlerMock,
+        :handle_connection_response,
+        fn "test-client", _, handler_state ->
+          send(test, {:handle_connection_response, handler_state})
+          :ok
+        end
+      )
+
+      # pretend we have a connection request from protocol version 11
+      encoded_message = <<11>> <> <<1, 2, 3>>
+
+      assert {:stop, _new_state, _} =
+               ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+
+      assert_received {:handle_connection_response, handler_state}
+
+      assert handler_state == state.handler_state
     end
   end
 
@@ -144,7 +173,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         ServerConnectionHandlerMock,
         :handle_publish,
-        fn "test-client", ^event, ^message_id -> :ack end
+        fn "test-client", ^event, ^message_id, _state -> :ack end
       )
 
       assert {:noreply, new_state} =
@@ -182,7 +211,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         ServerConnectionHandlerMock,
         :handle_publish,
-        fn "test-client", ^event, ^message_id -> {:nack, nack_data} end
+        fn "test-client", ^event, ^message_id, _state -> {:nack, nack_data} end
       )
 
       assert {:noreply, new_state} =
@@ -216,7 +245,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         ServerConnectionHandlerMock,
         :handle_publish,
-        fn "test-client", ^event, ^message_id ->
+        fn "test-client", ^event, ^message_id, _state ->
           raise(ArgumentError, message: "boom")
         end
       )
@@ -265,7 +294,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         ServerConnectionHandlerMock,
         :handle_publish,
-        fn "test-client", ^event, ^message_id -> throw("catch!") end
+        fn "test-client", ^event, ^message_id, _state -> throw("catch!") end
       )
 
       assert capture_log(fn ->
@@ -280,6 +309,41 @@ defmodule Sink.Connection.ServerHandlerTest do
                assert 0 != new_state.stats.last_received_at
              end) =~ "catch!"
     end
+
+    test "handle_publish receives handler state", %{state: state} do
+      test = self()
+
+      event = %Event{
+        event_type_id: 1,
+        key: <<1, 2>>,
+        offset: 42,
+        timestamp: @unix_now,
+        event_data: <<9, 8, 7>>,
+        schema_version: 1
+      }
+
+      message_id = 1234
+
+      payload = Protocol.encode_payload(:publish, event)
+      encoded_message = Protocol.encode_frame({:publish, message_id, payload})
+
+      expect(TransportMock, :send, fn 123, <<52, 210>> -> :ok end)
+
+      expect(
+        ServerConnectionHandlerMock,
+        :handle_publish,
+        fn "test-client", ^event, ^message_id, handler_state ->
+          send(test, {:handle_publish, handler_state})
+          :ack
+        end
+      )
+
+      assert {:noreply, _} = ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+
+      assert_received {:handle_publish, handler_state}
+
+      assert handler_state == state.handler_state
+    end
   end
 
   describe "receiving (ack)" do
@@ -293,7 +357,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       encoded_message = Protocol.encode_frame({:ack, 100})
 
       ServerConnectionHandlerMock
-      |> expect(:handle_ack, fn "test-client", ^ack_key ->
+      |> expect(:handle_ack, fn "test-client", ^ack_key, _state ->
         :ok
       end)
 
@@ -304,6 +368,30 @@ defmodule Sink.Connection.ServerHandlerTest do
 
       assert 101 = new_state.inflight.next_message_id
       assert false == ServerHandler.State.inflight?(new_state, ack_key)
+    end
+
+    test "handle_ack receives handler state", %{state: state} do
+      test = self()
+
+      event_type_id = 1
+      key = <<1, 2>>
+      offset = 42
+      ack_key = {event_type_id, key, offset}
+      encoded_message = Protocol.encode_frame({:ack, 100})
+
+      ServerConnectionHandlerMock
+      |> expect(:handle_ack, fn "test-client", ^ack_key, handler_state ->
+        send(test, {:handle_ack, handler_state})
+        :ok
+      end)
+
+      state = ServerHandler.State.put_inflight(state, ack_key)
+
+      assert {:noreply, _} = ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+
+      assert_received {:handle_ack, handler_state}
+
+      assert handler_state == state.handler_state
     end
   end
 
@@ -350,7 +438,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       expect(
         ServerConnectionHandlerMock,
         :handle_nack,
-        fn "test-client", ^ack_key, ^nack_data ->
+        fn "test-client", ^ack_key, ^nack_data, _state ->
           :ok
         end
       )
@@ -361,6 +449,37 @@ defmodule Sink.Connection.ServerHandlerTest do
                ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
 
       assert false == ServerHandler.State.inflight?(new_state, ack_key)
+    end
+
+    test "handle_nack receives handler state", %{state: state} do
+      test = self()
+
+      event_type_id = 1
+      key = <<1, 2>>
+      offset = 42
+      message_id = 100
+      ack_key = {event_type_id, key, offset}
+      nack_data = {<<0, 0, 0>>, "crash!"}
+
+      payload = Protocol.encode_payload(:nack, nack_data)
+      encoded_message = Protocol.encode_frame({:nack, message_id, payload})
+
+      expect(
+        ServerConnectionHandlerMock,
+        :handle_nack,
+        fn "test-client", ^ack_key, ^nack_data, handler_state ->
+          send(test, {:handle_nack, handler_state})
+          :ok
+        end
+      )
+
+      state = ServerHandler.State.put_inflight(state, ack_key)
+
+      assert {:noreply, _} = ServerHandler.handle_info({:ssl, :fake, encoded_message}, state)
+
+      assert_received {:handle_nack, handler_state}
+
+      assert handler_state == state.handler_state
     end
   end
 
@@ -450,6 +569,7 @@ defmodule Sink.Connection.ServerHandlerTest do
       transport: TransportMock,
       peername: :fake,
       connection_status: ConnectionStatus.init({:ok, %{server: 2, client: 1}}),
+      handler_state: %{custom: :data},
       handler: ServerConnectionHandlerMock,
       ssl_opts: :fake,
       inflight: %Inflight{

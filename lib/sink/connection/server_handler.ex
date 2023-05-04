@@ -26,11 +26,22 @@ defmodule Sink.Connection.ServerHandler do
       :handler,
       :ssl_opts,
       :connection_status,
+      :handler_state,
       :stats,
       :inflight
     ]
 
-    def init(client, socket, transport, peername, handler, ssl_opts, client_configuration, now) do
+    def init(
+          client,
+          socket,
+          transport,
+          peername,
+          handler,
+          ssl_opts,
+          connection_status,
+          handler_state,
+          now
+        ) do
       %State{
         client: client,
         socket: socket,
@@ -38,7 +49,8 @@ defmodule Sink.Connection.ServerHandler do
         peername: peername,
         handler: handler,
         ssl_opts: ssl_opts,
-        connection_status: ConnectionStatus.init(client_configuration),
+        connection_status: ConnectionStatus.init(connection_status),
+        handler_state: handler_state,
         stats: Stats.init(now),
         inflight: Inflight.init()
       }
@@ -220,6 +232,8 @@ defmodule Sink.Connection.ServerHandler do
 
     case handler.authenticate_client(peer_cert) do
       {:ok, client_id} ->
+        {conn_state, conn_metadata, handler_state} = handler.client_configuration(client_id)
+
         state =
           State.init(
             client_id,
@@ -228,7 +242,8 @@ defmodule Sink.Connection.ServerHandler do
             peername,
             handler,
             ssl_opts,
-            handler.client_configuration(client_id),
+            {conn_state, conn_metadata},
+            handler_state,
             now()
           )
 
@@ -245,7 +260,7 @@ defmodule Sink.Connection.ServerHandler do
         if ConnectionStatus.connected?(state.connection_status) do
           # Fake connection response to handle
           # TODO: Remove once connection requests are required, as the condition will never be true
-          handler.handle_connection_response(state.client, :connected)
+          handler.handle_connection_response(state.client, :connected, state.handler_state)
         end
 
         Sink.Telemetry.start(:connection, %{client_id: client_id, peername: peername})
@@ -280,7 +295,7 @@ defmodule Sink.Connection.ServerHandler do
     )
 
     if ConnectionStatus.connected?(state.connection_status) do
-      :ok = state.handler.down(state.client)
+      :ok = state.handler.down(state.client, state.handler_state)
     end
 
     state
@@ -370,12 +385,16 @@ defmodule Sink.Connection.ServerHandler do
             ConnectionStatus.connection_request(state.connection_status, result)
 
           new_state = %State{state | connection_status: new_connection_status}
-          handler.handle_connection_response(new_state.client, result)
+          handler.handle_connection_response(new_state.client, result, state.handler_state)
           {new_state, {:connection_response, {:connection_response, result}}}
 
         {:connection_request, _protocol_version, {version, {client, server}}} ->
           {response, new_connection_status} =
-            if state.handler.supported_application_version?(client_id, version) do
+            if state.handler.supported_application_version?(
+                 client_id,
+                 version,
+                 state.handler_state
+               ) do
               ConnectionStatus.connection_request(
                 state.connection_status,
                 version,
@@ -395,10 +414,18 @@ defmodule Sink.Connection.ServerHandler do
 
           case response do
             {:hello_new_client, _} ->
-              handler.handle_connection_response(new_state.client, {:hello_new_client, client})
+              handler.handle_connection_response(
+                new_state.client,
+                {:hello_new_client, client},
+                state.handler_state
+              )
 
             other ->
-              handler.handle_connection_response(new_state.client, other)
+              handler.handle_connection_response(
+                new_state.client,
+                other,
+                state.handler_state
+              )
           end
 
           {new_state, {:connection_response, {:connection_response, encodeable_response}}}
@@ -413,7 +440,7 @@ defmodule Sink.Connection.ServerHandler do
           # what to do if we can't ack?
           # rescue ->
           # how do we handle a failed ack?
-          :ok = handler.handle_ack(client, ack_key)
+          :ok = handler.handle_ack(client, ack_key, state.handler_state)
           {State.remove_inflight(state, message_id), nil}
 
         {:nack, message_id, payload} ->
@@ -423,7 +450,7 @@ defmodule Sink.Connection.ServerHandler do
           {event_type_id, _, _} = ack_key
           Sink.Telemetry.nack(:received, %{client_id: client_id, event_type_id: event_type_id})
 
-          :ok = handler.handle_nack(client, ack_key, nack_data)
+          :ok = handler.handle_nack(client, ack_key, nack_data, state.handler_state)
           {new_state, nil}
 
         {:publish, message_id, payload} ->
@@ -436,7 +463,7 @@ defmodule Sink.Connection.ServerHandler do
 
           # send the event to handler
           try do
-            handler.handle_publish(client, event, message_id)
+            handler.handle_publish(client, event, message_id, state.handler_state)
           catch
             kind, e ->
               formatted = Exception.format(kind, e, __STACKTRACE__)

@@ -69,10 +69,10 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: nil} end)
 
       stub(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{server: 2, client: nil}}
+        {:ok, %{server: 2, client: nil}, %{}}
       end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", :connected = state ->
+      expect(@server_handler, :handle_connection_response, fn "abc123", :connected = state, _ ->
         send(test, {:handle_connection_response, state})
         :ok
       end)
@@ -80,21 +80,24 @@ defmodule Sink.ConnectionTest do
       # On connection request
       expect(@client_handler, :application_version, fn -> @version end)
 
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version ->
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
         send(test, :supported_application_version?)
         true
       end)
 
       expect(@client_handler, :handle_connection_response, fn {:hello_new_client, 2} -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123",
-                                                              {:hello_new_client, 1} = state ->
-        send(test, {:handle_connection_response, state})
-        :ok
-      end)
+      expect(
+        @server_handler,
+        :handle_connection_response,
+        fn "abc123", {:hello_new_client, 1} = state, _ ->
+          send(test, {:handle_connection_response, state})
+          :ok
+        end
+      )
 
       # On Stop
-      expect(@server_handler, :down, fn _ -> :ok end)
+      expect(@server_handler, :down, fn _, %{} -> :ok end)
       expect(@client_handler, :down, fn -> :ok end)
 
       start_supervised!(
@@ -130,18 +133,26 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: nil} end)
 
       stub(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{server: 2, client: nil}}
+        {:ok, %{server: 2, client: nil}, %{}}
       end)
 
       expect(@client_handler, :application_version, fn -> @version end)
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
+        true
+      end)
+
       expect(@client_handler, :handle_connection_response, fn {:hello_new_client, 2} -> :ok end)
-      expect(@server_handler, :down, fn _ -> :ok end)
+      expect(@server_handler, :down, fn _, %{} -> :ok end)
       expect(@client_handler, :down, fn -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", {:hello_new_client, 1} ->
-        :ok
-      end)
+      expect(
+        @server_handler,
+        :handle_connection_response,
+        fn "abc123", {:hello_new_client, 1}, _ ->
+          :ok
+        end
+      )
 
       start_supervised!(
         {Sink.Connection.ServerListener,
@@ -170,18 +181,26 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: nil} end)
 
       stub(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{client: 1, server: 2}}
+        {:ok, %{client: 1, server: 2}, %{}}
       end)
 
       expect(@client_handler, :application_version, fn -> @version end)
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
+        true
+      end)
+
       expect(@client_handler, :handle_connection_response, fn {:hello_new_client, 2} -> :ok end)
-      expect(@server_handler, :down, fn _ -> :ok end)
+      expect(@server_handler, :down, fn _, %{} -> :ok end)
       expect(@client_handler, :down, fn -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", {:hello_new_client, 1} ->
-        :ok
-      end)
+      expect(
+        @server_handler,
+        :handle_connection_response,
+        fn "abc123", {:hello_new_client, 1}, _ ->
+          :ok
+        end
+      )
 
       start_supervised!(
         {Sink.Connection.ServerListener,
@@ -209,17 +228,20 @@ defmodule Sink.ConnectionTest do
       expect(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       expect(@client_handler, :instance_ids, fn -> %{client: 1, server: 2} end)
       expect(@client_handler, :application_version, fn -> @version end)
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
+        true
+      end)
 
       expect(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{client: 1, server: 2}}
+        {:ok, %{client: 1, server: 2}, %{}}
       end)
 
       stub(@mod_transport, :send, fn _, _ -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", :connected -> :ok end)
+      expect(@server_handler, :handle_connection_response, fn "abc123", :connected, _ -> :ok end)
 
-      expect(@server_handler, :down, fn _ -> :ok end)
+      expect(@server_handler, :down, fn _, %{} -> :ok end)
       expect(@client_handler, :handle_connection_response, fn :connected -> :ok end)
       expect(@client_handler, :down, fn -> :ok end)
 
@@ -252,19 +274,26 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: 3} end)
 
       stub(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{client: 1, server: 2}}
+        {:ok, %{client: 1, server: 2}, %{}}
       end)
 
       expect(@client_handler, :application_version, fn -> @version end)
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
+        true
+      end)
 
       expect(@client_handler, :handle_connection_response, fn :instance_id_mismatch ->
         :ok
       end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", :instance_id_mismatch ->
-        :ok
-      end)
+      expect(
+        @server_handler,
+        :handle_connection_response,
+        fn "abc123", :instance_id_mismatch, _ ->
+          :ok
+        end
+      )
 
       start_supervised!(
         {Sink.Connection.ServerListener,
@@ -297,19 +326,26 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instance_ids, fn -> %{client: 3, server: 2} end)
 
       stub(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{client: 1, server: 2}}
+        {:ok, %{client: 1, server: 2}, %{}}
       end)
 
       expect(@client_handler, :application_version, fn -> @version end)
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
+        true
+      end)
 
       expect(@client_handler, :handle_connection_response, fn :instance_id_mismatch ->
         :ok
       end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", :instance_id_mismatch ->
-        :ok
-      end)
+      expect(
+        @server_handler,
+        :handle_connection_response,
+        fn "abc123", :instance_id_mismatch, _ ->
+          :ok
+        end
+      )
 
       start_supervised!(
         {Sink.Connection.ServerListener,
@@ -338,17 +374,31 @@ defmodule Sink.ConnectionTest do
     end
 
     test "quarantined client", %{server_ssl: server_ssl, client_ssl: client_ssl} do
-      expected_response = {:quarantined, {<<1, 1, 1>>, "blocked"}}
       stub(@server_handler, :authenticate_client, fn _ -> {:ok, "abc123"} end)
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: 2} end)
-      stub(@server_handler, :client_configuration, fn "abc123" -> expected_response end)
-      expect(@client_handler, :application_version, fn -> @version end)
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
-      expect(@client_handler, :handle_connection_response, fn ^expected_response -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", ^expected_response ->
+      stub(@server_handler, :client_configuration, fn "abc123" ->
+        {:quarantined, {<<1, 1, 1>>, "blocked"}, %{}}
+      end)
+
+      expect(@client_handler, :application_version, fn -> @version end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
+        true
+      end)
+
+      expect(@client_handler, :handle_connection_response, fn {:quarantined,
+                                                               {<<1, 1, 1>>, "blocked"}} ->
         :ok
       end)
+
+      expect(
+        @server_handler,
+        :handle_connection_response,
+        fn "abc123", {:quarantined, {<<1, 1, 1>>, "blocked"}}, _ ->
+          :ok
+        end
+      )
 
       start_supervised!(
         {Sink.Connection.ServerListener,
@@ -379,16 +429,24 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: 2} end)
 
       stub(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{client: 1, server: 2}}
+        {:ok, %{client: 1, server: 2}, %{}}
       end)
 
       expect(@client_handler, :application_version, fn -> @version end)
-      expect(@server_handler, :supported_application_version?, fn "abc123", @version -> false end)
+
+      expect(@server_handler, :supported_application_version?, fn "abc123", @version, _ ->
+        false
+      end)
+
       expect(@client_handler, :handle_connection_response, fn ^expected_response -> :ok end)
 
-      expect(@server_handler, :handle_connection_response, fn "abc123", ^expected_response ->
-        :ok
-      end)
+      expect(
+        @server_handler,
+        :handle_connection_response,
+        fn "abc123", ^expected_response, _ ->
+          :ok
+        end
+      )
 
       start_supervised!(
         {Sink.Connection.ServerListener,
@@ -421,15 +479,19 @@ defmodule Sink.ConnectionTest do
       stub(@client_handler, :instance_ids, fn -> %{client: 1, server: 2} end)
 
       stub(@server_handler, :client_configuration, fn "abc123" ->
-        {:ok, %{client: 1, server: 2}}
+        {:ok, %{client: 1, server: 2}, %{}}
       end)
 
       stub(@client_handler, :application_version, fn -> @version end)
-      stub(@server_handler, :supported_application_version?, fn "abc123", @version -> true end)
+
+      stub(@server_handler, :supported_application_version?, fn "abc123", @version, %{} ->
+        true
+      end)
+
       stub(@mod_transport, :send, fn _, _ -> :ok end)
       stub(@client_handler, :handle_connection_response, fn :connected -> :ok end)
-      stub(@server_handler, :handle_connection_response, fn "abc123", :connected -> :ok end)
-      stub(@server_handler, :down, fn _ -> :ok end)
+      stub(@server_handler, :handle_connection_response, fn "abc123", :connected, _ -> :ok end)
+      stub(@server_handler, :down, fn _, %{} -> :ok end)
       stub(@client_handler, :down, fn -> :ok end)
 
       start_supervised!(
@@ -460,7 +522,7 @@ defmodule Sink.ConnectionTest do
         end
       )
 
-      expect(@server_handler, :handle_ack, fn client_id, ack_key ->
+      expect(@server_handler, :handle_ack, fn client_id, ack_key, _ ->
         send(test, {:ack, client_id, ack_key})
         :ok
       end)
@@ -493,7 +555,7 @@ defmodule Sink.ConnectionTest do
         end
       )
 
-      expect(@server_handler, :handle_nack, fn client_id, ack_key, nack_key ->
+      expect(@server_handler, :handle_nack, fn client_id, ack_key, nack_key, _ ->
         send(test, {:nack, client_id, ack_key, nack_key})
         :ok
       end)
@@ -517,7 +579,7 @@ defmodule Sink.ConnectionTest do
       expect(
         @server_handler,
         :handle_publish,
-        fn _client_id, event, _message_id ->
+        fn _client_id, event, _message_id, _ ->
           send(test, {{:server, :publish}, event})
           :ack
         end
@@ -547,7 +609,7 @@ defmodule Sink.ConnectionTest do
       expect(
         @server_handler,
         :handle_publish,
-        fn "abc123", event, _message_id ->
+        fn "abc123", event, _message_id, _ ->
           send(test, {{:server, :publish}, event})
           raise RuntimeError, "nack reason"
         end
@@ -577,7 +639,7 @@ defmodule Sink.ConnectionTest do
       expect(
         @server_handler,
         :handle_publish,
-        fn _client_id, event, _message_id ->
+        fn _client_id, event, _message_id, _ ->
           send(test, {{:server, :publish}, event})
           :ack
         end
