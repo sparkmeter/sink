@@ -36,6 +36,10 @@ defmodule Sink.Connection.ClientConnection do
       ConnectionStatus.connected?(state.connection_status)
     end
 
+    def disconnecting?(state) do
+      ConnectionStatus.disconnecting?(state.connection_status)
+    end
+
     def connection_response(state, result) do
       %__MODULE__{
         state
@@ -377,19 +381,15 @@ defmodule Sink.Connection.ClientConnection do
     end
   end
 
-  def handle_info({:tcp_closed, _}, state) do
-    {:stop, :normal, state}
+  def handle_info({closed, _}, state) when closed in [:tcp_closed, :ssl_closed] do
+    if State.disconnecting?(state) do
+      {:stop, {:shutdown, :server_rejected_connection}, state}
+    else
+      {:stop, :normal, state}
+    end
   end
 
-  def handle_info({:ssl_closed, _}, state) do
-    {:stop, :normal, state}
-  end
-
-  def handle_info({:ssl_error, reason}, state) do
-    {:stop, {:error, reason}, state}
-  end
-
-  def handle_info({:tcp_error, _, reason}, state) do
+  def handle_info({error, reason}, state) when error in [:tcp_error, :ssl_error] do
     {:stop, {:error, reason}, state}
   end
 

@@ -8,6 +8,10 @@ Mox.defmock(Sink.Connection.ClientConnectionHandlerMock,
   for: Sink.Connection.ClientConnectionHandler
 )
 
+Mox.defmock(Sink.Connection.Client.BackoffMock,
+  for: Sink.Connection.Client.Backoff
+)
+
 Mox.defmock(Sink.Connection.ServerHandlerMock,
   for: :ranch_protocol
 )
